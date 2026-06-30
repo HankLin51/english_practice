@@ -281,6 +281,15 @@ function setupNavigation() {
         updateDashboardQuests();
       } else if (targetSection === "review") {
         renderReviewBoxList();
+      } else if (targetSection === "practice") {
+        if (!sessionState) {
+          // 確保回到練習選單時，題目區隱藏，選單與標題顯示
+          document.getElementById("practice-active-area").style.display = "none";
+          const practiceHeader = document.querySelector(".practice-header");
+          const practiceGrid = document.querySelector(".practice-menu-grid");
+          if (practiceHeader) practiceHeader.style.display = "flex";
+          if (practiceGrid) practiceGrid.style.display = "grid";
+        }
       }
     });
   });
@@ -497,7 +506,13 @@ function updateDashboardQuests() {
 function startPractice(category) {
   // 切換到練習模式視窗
   document.getElementById("dashboard-section").classList.remove("active");
-  document.getElementById("practice-section").classList.remove("active");
+  document.getElementById("practice-section").classList.add("active");
+  
+  // 隱藏練習選單與標題
+  const practiceHeader = document.querySelector(".practice-header");
+  const practiceGrid = document.querySelector(".practice-menu-grid");
+  if (practiceHeader) practiceHeader.style.display = "none";
+  if (practiceGrid) practiceGrid.style.display = "none";
   
   const practiceActiveArea = document.getElementById("practice-active-area");
   practiceActiveArea.style.display = "block";
@@ -976,6 +991,13 @@ function exitPractice() {
   if (confirm("您確定要退出練習嗎？目前的練習進度將不會被保存。")) {
     sessionState = null;
     document.getElementById("practice-active-area").style.display = "none";
+    
+    // 恢復選單與標題顯示
+    const practiceHeader = document.querySelector(".practice-header");
+    const practiceGrid = document.querySelector(".practice-menu-grid");
+    if (practiceHeader) practiceHeader.style.display = "flex";
+    if (practiceGrid) practiceGrid.style.display = "grid";
+    
     const activeNavItem = document.querySelector(".nav-item.active");
     const target = activeNavItem ? activeNavItem.dataset.target : "dashboard";
     document.querySelectorAll(".content-section").forEach(s => {
@@ -1115,6 +1137,13 @@ function showSessionSummary() {
 function finishPracticeCleanup() {
   sessionState = null;
   document.getElementById("practice-active-area").style.display = "none";
+  
+  // 恢復選單與標題顯示
+  const practiceHeader = document.querySelector(".practice-header");
+  const practiceGrid = document.querySelector(".practice-menu-grid");
+  if (practiceHeader) practiceHeader.style.display = "flex";
+  if (practiceGrid) practiceGrid.style.display = "grid";
+  
   const activeNavItem = document.querySelector(".nav-item.active");
   const target = activeNavItem ? activeNavItem.dataset.target : "dashboard";
   document.querySelectorAll(".content-section").forEach(s => {
@@ -1248,6 +1277,13 @@ function startNextReviewQuestion() {
   // 切換到練習模式視窗
   document.getElementById("dashboard-section").classList.remove("active");
   document.getElementById("review-section").classList.remove("active");
+  document.getElementById("practice-section").classList.add("active");
+  
+  // 隱藏練習區選單與標題
+  const practiceHeader = document.querySelector(".practice-header");
+  const practiceGrid = document.querySelector(".practice-menu-grid");
+  if (practiceHeader) practiceHeader.style.display = "none";
+  if (practiceGrid) practiceGrid.style.display = "none";
   
   const practiceActiveArea = document.getElementById("practice-active-area");
   practiceActiveArea.style.display = "block";
