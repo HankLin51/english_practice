@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多益英文學習與練習平台 - 登峰英語挑戰</title>
+  <meta name="description" content="專為多益考生設計的英文學習與練習平台，提供單字、片語、文法、句型、對話口說五大練習，結合間隔重複複習與遊戲化機制。">
+  <!-- FontAwesome 圖標庫 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- 核心樣式 -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 側邊導覽列 -->
+  <aside class="sidebar">
+    <div class="logo-container">
+      <div class="logo-icon">T</div>
+      <span class="logo-text">登峰多益</span>
+    </div>
+    
+    <nav class="nav-links">
+      <a class="nav-item active" data-target="dashboard">
+        <i class="fas fa-chart-line"></i>
+        <span>挑戰儀表板</span>
+      </a>
+      <a class="nav-item" data-target="practice">
+        <i class="fas fa-book-open"></i>
+        <span>學習練習區</span>
+      </a>
+      <a class="nav-item" data-target="review">
+        <i class="fas fa-history"></i>
+        <span>智能複習箱</span>
+      </a>
+      <a class="nav-item" data-target="analysis">
+        <i class="fas fa-chart-bar"></i>
+        <span>週進度分析</span>
+      </a>
+      <a class="nav-item" data-target="store">
+        <i class="fas fa-store"></i>
+        <span>成就與商店</span>
+      </a>
+    </nav>
+
+    <div class="user-quick-profile">
+      <div class="avatar" id="sidebar-avatar">挑戰</div>
+      <div class="profile-info">
+        <span class="profile-name" id="sidebar-username">學習挑戰者</span>
+        <span class="profile-level" id="sidebar-level">Lv. 1 • 多益小白</span>
+      </div>
+      <button class="user-switch-trigger-btn" onclick="openUserModal()" title="切換/管理帳號">
+        <i class="fas fa-users-cog"></i>
+      </button>
+    </div>
+  </aside>
+
+  <!-- 右側主要內容區 -->
+  <main class="main-wrapper">
+    
+    <header>
+      <div class="welcome-msg" style="display:flex; flex-direction:column; gap:8px; width:100%;">
+        <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+          <h1 id="welcome-title">Hi, 英語學習者!</h1>
+          <button class="exit-btn" onclick="openUserModal()" style="padding: 6px 14px; font-size:13px; display:flex; align-items:center; gap:8px; min-height:36px;">
+            <i class="fas fa-user-cog"></i> <span id="header-username-label">預設使用者</span>
+          </button>
+        </div>
+        <p id="welcome-sub-desc">今天也是挑戰自我的一天，準備好進行衝刺了嗎？</p>
+        
+        <!-- 考試目標切換器 -->
+        <div class="exam-switcher-container">
+          <button class="exam-switch-btn active" id="exam-switch-toeic" onclick="switchExamGoal('toeic')">🟢 TOEIC 多益</button>
+          <button class="exam-switch-btn" id="exam-switch-rn" onclick="switchExamGoal('rn')">🩺 NCLEX-RN 護理師</button>
+        </div>
+      </div>
+
+      <div class="header-status-panel">
+        <!-- 連擊/簽到天數 -->
+        <div class="streak-pill inactive">
+          <i class="fas fa-fire"></i>
+          <span id="header-streak-val">0 天</span>
+        </div>
+        
+        <!-- 金幣 -->
+        <div class="coins-pill">
+          <i class="fas fa-coins"></i>
+          <span id="header-coins-val">0</span>
+        </div>
+
+        <!-- 經驗值與等級 -->
+        <div class="exp-card">
+          <div class="exp-text">
+            <span class="level-badge" id="header-level-text">Lv. 1 (多益小白)</span>
+            <span id="header-exp-val">0 / 100 EXP</span>
+          </div>
+          <div class="exp-bar-bg">
+            <div class="exp-bar-fill" id="header-exp-fill"></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 8px 0;">
+
+    <!-- ================= 1. 挑戰儀表板 ================= -->
+    <section id="dashboard-section" class="content-section active">
+      <!-- 統計數字小卡 -->
+      <div class="dashboard-grid">
+        <div class="stat-card">
+          <div class="stat-left">
+            <span class="stat-title">已練習題數</span>
+            <span class="stat-val" id="stat-studied-count">0</span>
+          </div>
+          <div class="stat-icon"><i class="fas fa-tasks"></i></div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-left">
+            <span class="stat-title">平均答對率</span>
+            <span class="stat-val" id="stat-correct-rate">0%</span>
+          </div>
+          <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-left">
+            <span class="stat-title">待複習題數</span>
+            <span class="stat-val" id="stat-review-count">0</span>
+          </div>
+          <div class="stat-icon"><i class="fas fa-sync"></i></div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-left">
+            <span class="stat-title">今日學習時間</span>
+            <span class="stat-val" id="stat-today-minutes">0 分</span>
+          </div>
+          <div class="stat-icon"><i class="fas fa-clock"></i></div>
+        </div>
+      </div>
+
+      <!-- 儀表板主要區域 (選級與任務) -->
+      <div class="dashboard-main">
+        <!-- 多益分級選擇 -->
+        <div class="section-card">
+          <h3 class="section-title"><i class="fas fa-graduation-cap"></i> 選擇多益目標等級 (級別將影響題目難度)</h3>
+          <div class="level-selector-grid">
+            
+            <div class="level-card green selected" data-level="green">
+              <span class="level-tag">TOEIC 350-465</span>
+              <span class="level-name">🟢 綠色證書級</span>
+              <span class="level-desc">奠定多益基礎，掌握最常見的日常商業對話與字彙。</span>
+            </div>
+
+            <div class="level-card blue" data-level="blue">
+              <span class="level-tag">TOEIC 470-725</span>
+              <span class="level-name">🔵 藍色證書級</span>
+              <span class="level-desc">挑戰中階商務，熟悉辦公室簡報、協商與進階文法結構。</span>
+            </div>
+
+            <div class="level-card gold" data-level="gold">
+              <span class="level-tag">TOEIC 730-990</span>
+              <span class="level-name">🥇 金色證書級</span>
+              <span class="level-desc">衝刺高分殿堂，掌握高難度商務詞彙與複雜邏輯句型。</span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 每日任務 -->
+        <div class="section-card">
+          <h3 class="section-title"><i class="fas fa-calendar-check"></i> 每日挑戰任務</h3>
+          <div class="quest-list" id="daily-quest-list">
+            <!-- 由 JS 動態生成任務項目 -->
+            <div style="text-align:center; color:var(--text-muted); padding:20px;">
+              載入任務中...
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 2. 學習練習區 ================= -->
+    <section id="practice-section" class="content-section">
+      <div class="practice-header">
+        <h2 class="current-practice-title">選擇練習領域</h2>
+        <p style="color: var(--text-secondary); font-size: 14px;">每天練習不同領域，能全方位提升您的英文實力！</p>
+      </div>
+
+      <!-- 五大練習卡片 -->
+      <div class="practice-menu-grid">
+        <div class="practice-menu-card" data-category="vocabulary">
+          <div class="practice-menu-icon"><i class="fas fa-spell-check"></i></div>
+          <span class="practice-menu-name">多益單字</span>
+          <p class="practice-menu-desc">精選高頻多益核心單字，建立堅實詞彙基礎。</p>
+        </div>
+
+        <div class="practice-menu-card" data-category="phrases">
+          <div class="practice-menu-icon"><i class="fas fa-tags"></i></div>
+          <span class="practice-menu-name">商務片語</span>
+          <p class="practice-menu-desc">商務對話與閱讀必備片語，加深職場用語習慣。</p>
+        </div>
+
+        <div class="practice-menu-card" data-category="grammar">
+          <div class="practice-menu-icon"><i class="fas fa-tasks"></i></div>
+          <span class="practice-menu-name">文法結構</span>
+          <p class="practice-menu-desc">精準切中多益文法考點，不再對文法概念感到困惑。</p>
+        </div>
+
+        <div class="practice-menu-card" data-category="sentences">
+          <div class="practice-menu-icon"><i class="fas fa-align-left"></i></div>
+          <span class="practice-menu-name">句型重組</span>
+          <p class="practice-menu-desc">透過句子重組，掌握正確的多益商務書信句型。</p>
+        </div>
+
+        <div class="practice-menu-card" data-category="dialogue">
+          <div class="practice-menu-icon"><i class="fas fa-comments"></i></div>
+          <span class="practice-menu-name">對話口說</span>
+          <p class="practice-menu-desc">語音辨識互動口說，大聲唸出實用商業對話！</p>
+        </div>
+      </div>
+
+      <!-- 練習進行的互動容器 (隱藏/顯示) -->
+      <div id="practice-active-area" style="display: none; margin-top:20px;">
+        <!-- 由 app.js 動態渲染題目 -->
+      </div>
+    </section>
+
+    <!-- ================= 3. 智能複習箱 ================= -->
+    <section id="review-section" class="content-section">
+      <!-- 複習介紹 -->
+      <div class="review-intro">
+        <div class="review-intro-text">
+          <h3>🌟 智能間隔重複系統 (Leitner System)</h3>
+          <p>答錯的題目會自動進入複習箱。Box 1 每天複習；答對後升級，Box 2 每 3 天複習；Box 3 每 7 天複習。連續在 Box 3 答對，即可從複習箱畢業！</p>
+        </div>
+        <button class="next-btn" id="start-all-reviews" style="white-space: nowrap;">開始複習全部</button>
+      </div>
+
+      <!-- 三個複習箱的視覺表示 -->
+      <div class="review-status-container">
+        <div class="leitner-box-card">
+          <div class="leitner-box-num">1</div>
+          <span class="leitner-box-count" id="review-box-1-count">0</span>
+          <span class="leitner-box-label">待複習 / 新錯題</span>
+          <span class="leitner-box-interval">每 1 天複習一次</span>
+        </div>
+
+        <div class="leitner-box-card">
+          <div class="leitner-box-num">2</div>
+          <span class="leitner-box-count" id="review-box-2-count">0</span>
+          <span class="leitner-box-label">中短期記憶</span>
+          <span class="leitner-box-interval">每 3 天複習一次</span>
+        </div>
+
+        <div class="leitner-box-card">
+          <div class="leitner-box-num">3</div>
+          <span class="leitner-box-count" id="review-box-3-count">0</span>
+          <span class="leitner-box-label">長期記憶挑戰</span>
+          <span class="leitner-box-interval">每 7 天複習一次</span>
+        </div>
+      </div>
+
+      <!-- 複習題目列表 -->
+      <div class="section-card">
+        <h3 class="section-title"><i class="fas fa-list-ul"></i> 今日待複習項目</h3>
+        <div class="review-items-list" id="review-items-container">
+          <!-- JS 動態生成複習卡 -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 4. 週進度分析 ================= -->
+    <section id="analysis-section" class="content-section">
+      <!-- 統計摘要 -->
+      <div class="analysis-summary-grid">
+        <div class="stat-card">
+          <div class="stat-left">
+            <span class="stat-title">本週練習總題數</span>
+            <span class="stat-val" id="analysis-total-questions">0</span>
+          </div>
+          <div class="stat-icon"><i class="fas fa-clipboard-list"></i></div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-left">
+            <span class="stat-title">綜合答對率</span>
+            <span class="stat-val" id="analysis-correct-rate">0%</span>
+          </div>
+          <div class="stat-icon"><i class="fas fa-bullseye"></i></div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-left">
+            <span class="stat-title">本週累積時間</span>
+            <span class="stat-val" id="analysis-total-hours">0 分鐘</span>
+          </div>
+          <div class="stat-icon"><i class="fas fa-stopwatch"></i></div>
+        </div>
+      </div>
+
+      <!-- 週圖表與強弱分析 -->
+      <div class="analysis-main-row">
+        <!-- 學習時數圖表 -->
+        <div class="section-card">
+          <h3 class="section-title"><i class="fas fa-calendar-alt"></i> 本週學習時數分佈 (週一至週日)</h3>
+          <p style="font-size: 13px; color:var(--text-secondary);">保持每日學習 5 分鐘，建立習慣是最有力的學習方法！</p>
+          <div class="weekly-bar-chart" id="weekly-bar-chart-container">
+            <!-- JS 動態渲染柱狀圖 -->
+          </div>
+        </div>
+
+        <!-- 答對率分析 -->
+        <div class="section-card">
+          <h3 class="section-title"><i class="fas fa-bolt"></i> 各練習模組答對率 (強弱分析)</h3>
+          <div class="skill-analysis-list" id="skill-analysis-container">
+            <!-- JS 動態渲染進度條 -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 5. 成就與商店 ================= -->
+    <section id="store-section" class="content-section">
+      
+      <!-- 主題商店 -->
+      <div class="section-card">
+        <h3 class="section-title"><i class="fas fa-paint-brush"></i> 虛擬能量商店</h3>
+        <p style="font-size: 13px; color:var(--text-secondary); margin-bottom:10px;">花費練習賺取的金幣，解鎖個人化背景與主題色，打造您專屬的英文挑戰介面！</p>
+        <div class="store-grid">
+          
+          <div class="store-card emerald">
+            <div class="store-item-preview"><i class="fas fa-gem"></i></div>
+            <span class="store-item-name">翡翠綠 (Emerald)</span>
+            <span class="store-item-desc">解鎖高雅而充滿活力的翡翠綠色主題。</span>
+            <button class="store-buy-btn" data-theme="emerald" data-cost="50"><i class="fas fa-coins"></i> 購買 (50 🪙)</button>
+          </div>
+
+          <div class="store-card rose">
+            <div class="store-item-preview"><i class="fas fa-heart"></i></div>
+            <span class="store-item-name">玫瑰紅 (Rose)</span>
+            <span class="store-item-desc">溫暖、亮麗，激發滿分熱情的玫瑰紅色主題。</span>
+            <button class="store-buy-btn" data-theme="rose" data-cost="50"><i class="fas fa-coins"></i> 購買 (50 🪙)</button>
+          </div>
+
+          <div class="store-card amber">
+            <div class="store-item-preview"><i class="fas fa-fire"></i></div>
+            <span class="store-item-name">琥珀橘 (Amber)</span>
+            <span class="store-item-desc">宛如火焰，象徵著無限毅力的琥珀橘主題。</span>
+            <button class="store-buy-btn" data-theme="amber" data-cost="50"><i class="fas fa-coins"></i> 購買 (50 🪙)</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 成就徽章 -->
+      <div class="section-card">
+        <h3 class="section-title"><i class="fas fa-trophy"></i> 登峰挑戰成就徽章</h3>
+        <div class="badges-grid" id="badges-grid-container">
+          <!-- 由 JS 動態生成成就徽章 -->
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- 使用者切換與資料夾備份 Modal -->
+  <div class="user-modal-overlay" id="user-modal">
+    <div class="user-modal-card">
+      <div class="user-modal-header">
+        <span class="user-modal-title"><i class="fas fa-user-cog"></i> 使用者帳號管理</span>
+        <button class="user-modal-close" onclick="closeUserModal()"><i class="fas fa-times"></i></button>
+      </div>
+      
+      <!-- 已有帳號列表 -->
+      <div class="user-list-container" id="modal-user-list">
+        <!-- JS 動態生成 -->
+      </div>
+
+      <!-- 新增帳號 -->
+      <div class="add-user-input-box">
+        <input type="text" class="add-user-input" id="new-username-input" placeholder="請輸入新使用者名稱...">
+        <button class="add-user-btn" onclick="handleCreateNewUser()">建立</button>
+      </div>
+
+      <!-- 備份資料夾設定 -->
+      <div class="backup-settings-section">
+        <div class="backup-dir-status">
+          <span>📁 自動備份資料夾</span>
+          <span class="backup-dir-indicator unconfigured" id="backup-status-badge">未設定</span>
+        </div>
+        <div class="backup-dir-path" id="backup-path-label">尚未設定自動備份資料夾，進度僅儲存在瀏覽器中。</div>
+        <button class="store-buy-btn" id="set-backup-dir-btn" onclick="handleSetBackupDirectory()" style="margin-top:4px;">
+          <i class="fas fa-folder-open"></i> 設定自動備份資料夾
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 隱藏的檔案上傳 input，用以還原備份檔案 -->
+  <input type="file" id="restore-file-input" style="display:none" accept=".json">
+
+  <!-- 引入題目數據與邏輯 -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

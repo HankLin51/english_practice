@@ -1,0 +1,1881 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+
+/* --- 變數與設計系統 --- */
+:root {
+  /* 調色盤 */
+  --bg-main: #0b0f19;
+  --bg-card: rgba(22, 28, 45, 0.7);
+  --bg-sidebar: rgba(15, 23, 42, 0.95);
+  
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --primary-glow: rgba(99, 102, 241, 0.15);
+  --secondary: #a855f7;
+  --secondary-glow: rgba(168, 85, 247, 0.15);
+  
+  --accent-gold: #f59e0b;
+  --accent-gold-glow: rgba(245, 158, 11, 0.2);
+  --accent-blue: #3b82f6;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(99, 102, 241, 0.4);
+  
+  /* 字型與轉變時間 */
+  --font-family: 'Outfit', 'Noto Sans TC', sans-serif;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --card-radius: 18px;
+  --btn-radius: 12px;
+}
+
+/* 主題顏色客製化 (由商店購買解鎖) */
+body.theme-emerald {
+  --primary: #10b981;
+  --primary-hover: #059669;
+  --primary-glow: rgba(16, 185, 129, 0.15);
+}
+body.theme-rose {
+  --primary: #f43f5e;
+  --primary-hover: #e11d48;
+  --primary-glow: rgba(244, 63, 94, 0.15);
+}
+body.theme-amber {
+  --primary: #fbbf24;
+  --primary-hover: #d97706;
+  --primary-glow: rgba(251, 191, 36, 0.15);
+}
+
+/* --- 基礎設定 --- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.08) 0px, transparent 50%),
+    radial-gradient(at 50% 50%, rgba(15, 23, 42, 0.5) 0px, transparent 100%);
+  background-attachment: fixed;
+}
+
+/* 捲軸美化 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* --- 側邊導覽列 (Sidebar) --- */
+.sidebar {
+  width: 260px;
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  position: fixed;
+  height: 100vh;
+  z-index: 100;
+  transition: var(--transition);
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 20px;
+  box-shadow: 0 4px 15px var(--primary-glow);
+}
+
+.logo-text {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: linear-gradient(to right, #fff, var(--text-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.nav-links {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-grow: 1;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: var(--btn-radius);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  border: 1px solid transparent;
+}
+
+.nav-item i {
+  font-size: 18px;
+}
+
+.nav-item:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.nav-item.active {
+  color: #fff;
+  background: linear-gradient(90deg, var(--primary-glow), transparent);
+  border-color: rgba(99, 102, 241, 0.2);
+  border-left: 4px solid var(--primary);
+  font-weight: 600;
+}
+
+.user-quick-profile {
+  border-top: 1px solid var(--border-color);
+  padding-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--secondary), var(--primary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  border: 2px solid var(--border-color);
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.profile-level {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* --- 主要內容區 (Main Content) --- */
+.main-wrapper {
+  margin-left: 260px;
+  flex-grow: 1;
+  padding: 40px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* 頂部控制列 (Header Panel) */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.welcome-msg h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.welcome-msg p {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.header-status-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.streak-pill, .coins-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  padding: 10px 18px;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: 15px;
+  box-shadow: var(--glass-shadow);
+  transition: var(--transition);
+}
+
+.streak-pill i {
+  color: var(--accent-gold);
+  font-size: 18px;
+  animation: pulse-fire 1.5s infinite alternate;
+}
+
+.streak-pill.inactive {
+  opacity: 0.6;
+  filter: grayscale(1);
+}
+
+.coins-pill i {
+  color: var(--accent-gold);
+  font-size: 18px;
+}
+
+/* 連擊火焰動畫 */
+@keyframes pulse-fire {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.4));
+  }
+  100% {
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.8));
+  }
+}
+
+/* 經驗值條 (EXP progress bar) */
+.exp-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 18px 24px;
+  backdrop-filter: blur(8px);
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.exp-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.level-badge {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.exp-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.exp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  width: 40%;
+  border-radius: 4px;
+  transition: width 0.8s cubic-bezier(0.1, 0.8, 0.3, 1);
+  box-shadow: 0 0 10px var(--primary-glow);
+}
+
+/* --- 面板切換切換容器 --- */
+.content-section {
+  display: none;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.content-section.active {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- 1. 儀表板 (Dashboard) --- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 24px;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: var(--transition);
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.stat-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-title {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.stat-val {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.stat-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--primary);
+  border: 1px solid var(--border-color);
+}
+
+.stat-card:nth-child(2) .stat-icon { color: var(--accent-green); }
+.stat-card:nth-child(3) .stat-icon { color: var(--accent-gold); }
+.stat-card:nth-child(4) .stat-icon { color: var(--secondary); }
+
+/* 儀表板主要區：多益選級與快速學習入口 */
+.dashboard-main {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+.section-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 28px;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 14px;
+}
+
+/* 多益分級選擇按鈕組 */
+.level-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .level-selector-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.level-card {
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--card-radius);
+  padding: 20px;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.level-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: transparent;
+  transition: var(--transition);
+}
+
+.level-card.green:hover, .level-card.green.selected {
+  background: rgba(16, 185, 129, 0.05);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.level-card.green.selected::before { background: var(--accent-green); }
+
+.level-card.blue:hover, .level-card.blue.selected {
+  background: rgba(59, 130, 246, 0.05);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+.level-card.blue.selected::before { background: var(--accent-blue); }
+
+.level-card.gold:hover, .level-card.gold.selected {
+  background: rgba(245, 158, 11, 0.05);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+.level-card.gold.selected::before { background: var(--accent-gold); }
+
+.level-tag {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  width: fit-content;
+}
+.level-card.green .level-tag { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.level-card.blue .level-tag { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+.level-card.gold .level-tag { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+
+.level-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.level-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* 每日任務面板 (Daily Quests) */
+.quest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.quest-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: var(--btn-radius);
+  transition: var(--transition);
+}
+
+.quest-item.completed {
+  opacity: 0.65;
+  border-color: rgba(16, 185, 129, 0.2);
+  background: rgba(16, 185, 129, 0.02);
+}
+
+.quest-item.completed .quest-title {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.quest-checkbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 2px solid var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  font-size: 12px;
+  transition: var(--transition);
+}
+
+.quest-item.completed .quest-checkbox {
+  border-color: var(--accent-green);
+  background: var(--accent-green);
+  color: #fff;
+}
+
+.quest-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-grow: 1;
+}
+
+.quest-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.quest-reward {
+  font-size: 12px;
+  color: var(--accent-gold);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* --- 2. 學習練習區 (Practice Section) --- */
+.practice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.current-practice-title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.practice-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.practice-menu-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 24px;
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.practice-menu-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--primary);
+  box-shadow: 0 10px 25px var(--primary-glow);
+}
+
+.practice-menu-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--primary);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.practice-menu-card:nth-child(2) .practice-menu-icon { background: rgba(168, 85, 247, 0.1); color: var(--secondary); border-color: rgba(168, 85, 247, 0.2); }
+.practice-menu-card:nth-child(3) .practice-menu-icon { background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); border-color: rgba(59, 130, 246, 0.2); }
+.practice-menu-card:nth-child(4) .practice-menu-icon { background: rgba(245, 158, 11, 0.1); color: var(--accent-gold); border-color: rgba(245, 158, 11, 0.2); }
+.practice-menu-card:nth-child(5) .practice-menu-icon { background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border-color: rgba(16, 185, 129, 0.2); }
+
+.practice-menu-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.practice-menu-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* 練習進行中視窗 */
+.quiz-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 32px;
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.quiz-progress-bar-container {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.quiz-progress-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  width: 0%;
+  transition: var(--transition);
+}
+
+.quiz-header-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.quiz-prompt {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.word-to-learn {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--primary);
+  text-align: center;
+  margin: 10px 0;
+  letter-spacing: 0.5px;
+}
+
+.word-phonetic {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 15px;
+  margin-top: -16px;
+  margin-bottom: 20px;
+}
+
+.quiz-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quiz-option-btn {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: var(--btn-radius);
+  padding: 16px 20px;
+  text-align: left;
+  font-family: var(--font-family);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.quiz-option-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--text-secondary);
+}
+
+.quiz-option-btn.correct {
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: var(--accent-green) !important;
+  color: #a7f3d0 !important;
+}
+
+.quiz-option-btn.incorrect {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: var(--accent-red) !important;
+  color: #fca5a5 !important;
+  animation: shake 0.4s ease-in-out;
+}
+
+/* 句子重組區 */
+.sentence-arrange-box {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sentence-target-area {
+  min-height: 70px;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--btn-radius);
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.15);
+  align-items: center;
+}
+
+.word-bank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: var(--btn-radius);
+  border: 1px solid var(--border-color);
+}
+
+.draggable-word-pill {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  padding: 10px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 500;
+  transition: var(--transition);
+}
+
+.draggable-word-pill:hover {
+  background: var(--primary-glow);
+  border-color: var(--primary);
+  transform: scale(1.05);
+}
+
+.draggable-word-pill.used {
+  opacity: 0.2;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* 語音口說練習介面 */
+.speech-practice-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 0;
+}
+
+.dialogue-bubble {
+  width: 100%;
+  max-width: 600px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.dialogue-bubble.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 15px var(--primary-glow);
+}
+
+.dialogue-speaker {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+}
+
+.dialogue-text {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.dialogue-trans {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.mic-btn-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.mic-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  border: none;
+  font-size: 26px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 20px var(--primary-glow);
+  transition: var(--transition);
+  position: relative;
+}
+
+.mic-btn:hover {
+  transform: scale(1.05);
+}
+
+.mic-btn.recording {
+  background: var(--accent-red);
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
+  animation: pulse-recording 1.2s infinite;
+}
+
+@keyframes pulse-recording {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.speech-feedback-text {
+  font-size: 15px;
+  color: var(--text-secondary);
+  min-height: 24px;
+  text-align: center;
+  font-style: italic;
+}
+
+/* 回饋教學小卡 (Explanation card) */
+.explanation-card {
+  margin-top: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 4px solid var(--primary);
+  border-radius: 0 var(--btn-radius) var(--btn-radius) 0;
+  padding: 20px;
+  animation: slideDown 0.3s ease-out;
+}
+
+.explanation-card h4 {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.explanation-card p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.quiz-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.exit-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 12px 24px;
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-weight: 500;
+  transition: var(--transition);
+}
+
+.exit-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.next-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 12px 32px;
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-weight: 600;
+  transition: var(--transition);
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.next-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+}
+
+/* 結算畫面 */
+.summary-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+  padding: 20px 0;
+}
+
+.summary-illustration {
+  font-size: 60px;
+  margin-bottom: 10px;
+}
+
+.summary-stats {
+  display: flex;
+  gap: 24px;
+  margin: 20px 0;
+}
+
+.summary-stat-box {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: var(--btn-radius);
+  padding: 16px 24px;
+  min-width: 120px;
+}
+
+.summary-stat-val {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.summary-stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* --- 3. 複習箱 (Review Box Section) --- */
+.review-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.review-intro-text h3 {
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.review-intro-text p {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.review-status-container {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.leitner-box-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  position: relative;
+}
+
+.leitner-box-num {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--primary);
+}
+
+.leitner-box-card:nth-child(2) .leitner-box-num { color: var(--secondary); }
+.leitner-box-card:nth-child(3) .leitner-box-num { color: var(--accent-gold); }
+
+.leitner-box-count {
+  font-size: 32px;
+  font-weight: 800;
+}
+
+.leitner-box-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.leitner-box-interval {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+/* 複習卡片項目 */
+.review-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.review-item-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 20px 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: var(--transition);
+}
+
+.review-item-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.review-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.review-item-word {
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.review-item-word span {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.review-item-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.review-item-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.review-item-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.review-action-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-weight: 600;
+  transition: var(--transition);
+}
+
+.review-action-btn:hover {
+  background: var(--primary-hover);
+}
+
+/* --- 4. 週進度分析區 (Weekly Analysis Section) --- */
+.analysis-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .analysis-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analysis-main-row {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr;
+  gap: 24px;
+}
+
+@media (max-width: 1024px) {
+  .analysis-main-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* CSS 繪製的週學習時數柱狀圖 */
+.weekly-bar-chart {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 220px;
+  padding: 20px 10px 0 10px;
+  border-bottom: 2px solid var(--border-color);
+  margin-top: 10px;
+}
+
+.chart-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 12%;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.chart-bar-val {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.chart-bar-fill {
+  width: 100%;
+  background: linear-gradient(180deg, var(--primary), rgba(99, 102, 241, 0.2));
+  border-radius: 6px 6px 0 0;
+  transition: height 1s ease-out;
+  min-height: 4px;
+  cursor: pointer;
+  position: relative;
+}
+
+.chart-bar-fill:hover {
+  background: linear-gradient(180deg, var(--secondary), rgba(168, 85, 247, 0.2));
+}
+
+.chart-bar-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* 雷達/進度條式強弱項分析 */
+.skill-analysis-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skill-analysis-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skill-analysis-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.skill-analysis-name {
+  font-weight: 500;
+}
+
+.skill-analysis-pct {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.skill-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.skill-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  width: 0%;
+  border-radius: 3px;
+  transition: width 1s ease-out;
+}
+
+.skill-analysis-item:nth-child(2) .skill-bar-fill { background: var(--secondary); }
+.skill-analysis-item:nth-child(2) .skill-analysis-pct { color: var(--secondary); }
+.skill-analysis-item:nth-child(3) .skill-bar-fill { background: var(--accent-blue); }
+.skill-analysis-item:nth-child(3) .skill-analysis-pct { color: var(--accent-blue); }
+.skill-analysis-item:nth-child(4) .skill-bar-fill { background: var(--accent-gold); }
+.skill-analysis-item:nth-child(4) .skill-analysis-pct { color: var(--accent-gold); }
+.skill-analysis-item:nth-child(5) .skill-bar-fill { background: var(--accent-green); }
+.skill-analysis-item:nth-child(5) .skill-analysis-pct { color: var(--accent-green); }
+
+/* --- 5. 虛擬商店與成就 (Store & Achievements) --- */
+.store-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.store-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+  transition: var(--transition);
+}
+
+.store-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.store-item-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.store-card.emerald .store-item-preview { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); }
+.store-card.rose .store-item-preview { background: rgba(244, 63, 94, 0.1); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.2); }
+.store-card.amber .store-item-preview { background: rgba(251, 191, 36, 0.1); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.2); }
+
+.store-item-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.store-item-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.store-buy-btn {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 10px 0;
+  border-radius: var(--btn-radius);
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-weight: 600;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.store-buy-btn:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+.store-buy-btn.equipped {
+  background: var(--accent-green) !important;
+  border-color: var(--accent-green) !important;
+  color: #fff !important;
+  cursor: default;
+}
+
+/* 成就面板 */
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.badge-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--card-radius);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+  transition: var(--transition);
+}
+
+.badge-card.locked {
+  opacity: 0.5;
+}
+
+.badge-icon-box {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  transition: var(--transition);
+}
+
+.badge-card:not(.locked) .badge-icon-box {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15));
+  border-color: var(--primary);
+  color: var(--accent-gold);
+  filter: drop-shadow(0 0 5px var(--primary-glow));
+}
+
+.badge-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.badge-card-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.badge-card-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.badge-status-tag {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.badge-card.locked .badge-status-tag {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}
+
+.badge-card:not(.locked) .badge-status-tag {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+/* --- 6. 其它微互動 --- */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+/* 升級彈出慶祝畫面 (Level up modal) */
+.level-up-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(11, 15, 25, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.level-up-modal {
+  background: linear-gradient(135deg, #1e1b4b, #311042);
+  border: 2px solid var(--primary);
+  border-radius: 24px;
+  padding: 40px;
+  text-align: center;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 0 50px rgba(99, 102, 241, 0.5);
+  animation: zoomIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.lvl-badge-giant {
+  font-size: 72px;
+  margin-bottom: 20px;
+  animation: float 2s infinite alternate;
+}
+
+@keyframes float {
+  from { transform: translateY(0); }
+  to { transform: translateY(-10px); }
+}
+
+.lvl-title-text {
+  font-size: 28px;
+  font-weight: 800;
+  background: linear-gradient(to right, #fbbf24, #f59e0b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 12px;
+}
+
+.lvl-congrats {
+  font-size: 16px;
+  color: #fff;
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.lvl-close-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 12px 40px;
+  border-radius: var(--btn-radius);
+  font-family: var(--font-family);
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.lvl-close-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-2px);
+}
+
+/* --- 7. 考試切換器與使用者管理樣式 --- */
+.exam-switcher-container {
+  display: flex;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 4px;
+  gap: 4px;
+  width: fit-content;
+  margin-top: 10px;
+}
+.exam-switch-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px 16px;
+  border-radius: 16px;
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 600;
+  transition: var(--transition);
+}
+.exam-switch-btn.active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 4px 10px var(--primary-glow);
+}
+
+/* 使用者管理 Modal 樣式 */
+.user-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(11, 15, 25, 0.8);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: var(--transition);
+}
+.user-modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.user-modal-card {
+  background: linear-gradient(135deg, #111827, #1f2937);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  width: 90%;
+  max-width: 480px;
+  padding: 28px;
+  box-shadow: var(--glass-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transform: translateY(20px);
+  transition: var(--transition);
+}
+.user-modal-overlay.active .user-modal-card {
+  transform: translateY(0);
+}
+.user-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 14px;
+}
+.user-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.user-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 18px;
+  cursor: pointer;
+}
+.user-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.user-list-item {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: var(--transition);
+}
+.user-list-item.active {
+  border-color: var(--primary);
+  background: var(--primary-glow);
+}
+.user-item-name {
+  font-weight: 600;
+  cursor: pointer;
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.user-item-actions {
+  display: flex;
+  gap: 8px;
+}
+.user-action-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 6px;
+  border-radius: 6px;
+  transition: var(--transition);
+}
+.user-action-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+.user-action-icon-btn.delete:hover {
+  color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.1);
+}
+.add-user-input-box {
+  display: flex;
+  gap: 8px;
+}
+.add-user-input {
+  flex-grow: 1;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #fff;
+  font-family: var(--font-family);
+  font-size: 14px;
+}
+.add-user-input:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+.add-user-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.backup-settings-section {
+  border-top: 1px solid var(--border-color);
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.backup-dir-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.backup-dir-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+.backup-dir-indicator.configured {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+.backup-dir-indicator.unconfigured {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+.backup-dir-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  word-break: break-all;
+  background: rgba(0,0,0,0.15);
+  padding: 6px 10px;
+  border-radius: 6px;
+  min-height: 24px;
+}
+
+.user-quick-profile {
+  position: relative;
+}
+.user-switch-trigger-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  transition: var(--transition);
+  margin-left: auto;
+}
+.user-switch-trigger-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+/* --- 8. 手機版自適應與響應式重構 (Mobile-First responsive) --- */
+@media (max-width: 768px) {
+  /* 側欄轉為底部懸浮導航欄 */
+  .sidebar {
+    width: 100vw;
+    height: 68px;
+    flex-direction: row;
+    position: fixed;
+    bottom: 0;
+    top: auto;
+    left: 0;
+    border-right: none;
+    border-top: 1px solid var(--border-color);
+    padding: 0 10px;
+    justify-content: space-around;
+    align-items: center;
+    background-color: var(--bg-sidebar);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(12px);
+    z-index: 999;
+  }
+  .logo-container, .user-quick-profile {
+    display: none !important;
+  }
+  .nav-links {
+    flex-direction: row !important;
+    width: 100%;
+    height: 100%;
+    justify-content: space-around;
+    align-items: center;
+    margin: 0;
+    gap: 0;
+  }
+  .nav-item {
+    padding: 8px 10px !important;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px !important;
+    font-size: 10px !important;
+    border-left: none !important;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    background: transparent !important;
+    flex-grow: 1;
+    text-align: center;
+    min-height: 52px;
+  }
+  .nav-item i {
+    font-size: 16px !important;
+  }
+  .nav-item.active {
+    color: var(--primary) !important;
+    border-bottom-color: var(--primary);
+  }
+  
+  /* 主要內容容器排版適應 */
+  .main-wrapper {
+    margin-left: 0 !important;
+    margin-bottom: 78px !important; /* 底部空間 */
+    padding: 20px 16px !important;
+    gap: 20px !important;
+  }
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .header-status-panel {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .exp-card {
+    width: 100%;
+  }
+
+  /* 儀表板與卡片適應 */
+  .dashboard-main {
+    grid-template-columns: 1fr;
+  }
+  .level-selector-grid {
+    grid-template-columns: 1fr;
+  }
+  .analysis-main-row {
+    grid-template-columns: 1fr;
+  }
+
+  /* 練習與複習介面觸控優化 */
+  .quiz-container {
+    padding: 20px 16px;
+    border-radius: var(--btn-radius);
+  }
+  .quiz-option-btn {
+    padding: 18px 16px;
+    font-size: 15px;
+    min-height: 52px;
+  }
+  .draggable-word-pill {
+    padding: 12px 18px;
+    font-size: 15px;
+    min-height: 48px;
+  }
+  .summary-stats {
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+  .summary-stat-box {
+    width: 100%;
+  }
+
+  /* 彈出視窗寬度適應 */
+  .user-modal-card {
+    width: 94%;
+    padding: 20px;
+    border-radius: 18px;
+  }
+}
+
