@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>登峰美日英語及護理挑戰平台</title>
-  <meta name="description" content="專為英語與護理考生設計的學習與練習平台，提供單字、語法、閱讀、情境對話與職場口說，結合間隔重複複習與遊戲化機制。">
+  <title>Chou Chou Challenge</title>
+  <meta name="description" content="專為英語與護理考生設計的 Chou Chou Challenge 學習與練習平台，提供單字、語法、閱讀、情境對話與職場口說，結合間隔重複複習與遊戲化機制。">
   <!-- FontAwesome 圖標庫 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- 核心樣式 -->
@@ -15,8 +15,8 @@
   <!-- 側邊導覽列 -->
   <aside class="sidebar">
     <div class="logo-container">
-      <div class="logo-icon">T</div>
-      <span class="logo-text">登峰英語</span>
+      <div class="logo-icon">C</div>
+      <span class="logo-text">Chou Chou Challenge</span>
     </div>
     
     <nav class="nav-links">
@@ -42,62 +42,53 @@
       </a>
     </nav>
 
-    <div class="user-quick-profile">
-      <div class="avatar" id="sidebar-avatar">挑戰</div>
-      <div class="profile-info">
-        <span class="profile-name" id="sidebar-username">學習挑戰者</span>
-        <span class="profile-level" id="sidebar-level">Lv. 1 • 英語新手</span>
-      </div>
-      <button class="user-switch-trigger-btn" onclick="openUserModal()" title="切換/管理帳號">
-        <i class="fas fa-users-cog"></i>
+    <!-- 左側底部的使用者資訊與狀態面板 -->
+    <div class="user-sidebar-profile">
+      <!-- 帳號管理/切換按鈕 -->
+      <button class="sidebar-user-btn" onclick="openUserModal()" title="切換/管理帳號">
+        <i class="fas fa-user-circle"></i>
+        <span id="header-username-label">預設使用者</span>
+        <i class="fas fa-cog" style="font-size:11px; margin-left:auto; opacity:0.6;"></i>
       </button>
+
+      <!-- 連擊與金幣 (橫向並排) -->
+      <div class="sidebar-status-row">
+        <div class="streak-pill inactive">
+          <i class="fas fa-fire"></i>
+          <span id="header-streak-val">0 天</span>
+        </div>
+        <div class="coins-pill">
+          <i class="fas fa-coins"></i>
+          <span id="header-coins-val">0</span>
+        </div>
+      </div>
+
+      <!-- 經驗值與等級進度條 -->
+      <div class="sidebar-exp-card">
+        <div class="exp-text">
+          <span class="level-badge" id="header-level-text">Lv. 1 (英語新手)</span>
+          <span id="header-exp-val">0 / 100 EXP</span>
+        </div>
+        <div class="exp-bar-bg">
+          <div class="exp-bar-fill" id="header-exp-fill"></div>
+        </div>
+      </div>
     </div>
   </aside>
 
   <!-- 右側主要內容區 -->
   <main class="main-wrapper">
     
-    <header>
+    <header style="flex-direction: column; align-items: flex-start; gap: 16px;">
       <div class="welcome-msg" style="display:flex; flex-direction:column; gap:8px; width:100%;">
-        <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-          <h1 id="welcome-title">Hi, 英語學習者!</h1>
-          <button class="exit-btn" onclick="openUserModal()" style="padding: 6px 14px; font-size:13px; display:flex; align-items:center; gap:8px; min-height:36px;">
-            <i class="fas fa-user-cog"></i> <span id="header-username-label">預設使用者</span>
-          </button>
-        </div>
+        <h1 id="welcome-title">Hi, 英語學習者!</h1>
         <p id="welcome-sub-desc">今天也是挑戰自我的一天，準備好進行衝刺了嗎？</p>
         
-        <!-- 考試目標切換器 -->
+        <!-- 考試目標切換器 (橫向拉長排列) -->
         <div class="exam-switcher-container">
-          <button class="exam-switch-btn active" id="exam-switch-dict" onclick="switchExamGoal('dict')">📚 智能分級單字 (API)</button>
+          <button class="exam-switch-btn active" id="exam-switch-dict" onclick="switchExamGoal('dict')">📚 智能分級單字 (本地詞庫)</button>
           <button class="exam-switch-btn" id="exam-switch-rn" onclick="switchExamGoal('rn')">🩺 NCLEX-RN 護理師</button>
-          <button class="exam-switch-btn" id="exam-switch-api" onclick="switchExamGoal('api')">🌐 線上國際題庫 (API)</button>
           <button class="exam-switch-btn" id="exam-switch-gemini" onclick="switchExamGoal('gemini')">✨ Gemini AI 智能出題</button>
-        </div>
-      </div>
-
-      <div class="header-status-panel">
-        <!-- 連擊/簽到天數 -->
-        <div class="streak-pill inactive">
-          <i class="fas fa-fire"></i>
-          <span id="header-streak-val">0 天</span>
-        </div>
-        
-        <!-- 金幣 -->
-        <div class="coins-pill">
-          <i class="fas fa-coins"></i>
-          <span id="header-coins-val">0</span>
-        </div>
-
-        <!-- 經驗值與等級 -->
-        <div class="exp-card">
-          <div class="exp-text">
-            <span class="level-badge" id="header-level-text">Lv. 1 (英語新手)</span>
-            <span id="header-exp-val">0 / 100 EXP</span>
-          </div>
-          <div class="exp-bar-bg">
-            <div class="exp-bar-fill" id="header-exp-fill"></div>
-          </div>
         </div>
       </div>
     </header>
@@ -141,16 +132,17 @@
         </div>
       </div>
 
-      <!-- 儀表板主要區域 (選級與任務) -->
+      <!-- 儀表板主要區域 (週進度分析) -->
       <div class="dashboard-main">
 
-        <!-- 每日任務 -->
+        <!-- 本週學習時數分佈 -->
         <div class="section-card">
-          <h3 class="section-title"><i class="fas fa-calendar-check"></i> 每日挑戰任務</h3>
-          <div class="quest-list" id="daily-quest-list">
-            <!-- 由 JS 動態生成任務項目 -->
+          <h3 class="section-title"><i class="fas fa-calendar-alt"></i> 本週學習時數分佈 (週一至週日)</h3>
+          <p style="font-size: 13px; color:var(--text-secondary); margin-bottom: 12px;">保持每日練習 5 分鐘，建立良好學習習慣！</p>
+          <div class="weekly-bar-chart" id="dashboard-bar-chart-container">
+            <!-- 由 JS 動態生成週時數柱狀圖 -->
             <div style="text-align:center; color:var(--text-muted); padding:20px;">
-              載入任務中...
+              載入中...
             </div>
           </div>
         </div>
@@ -194,6 +186,25 @@
           <div class="practice-menu-icon"><i class="fas fa-crown"></i></div>
           <span class="practice-menu-name">Level 5 (高級單字 - C1)</span>
           <p class="practice-menu-desc">高難度、文學及專業論述詞彙，適合追求英文完美的挑戰者。</p>
+        </div>
+
+        <!-- 片語、句型、文法卡片 -->
+        <div class="practice-menu-card" data-category="phrase">
+          <div class="practice-menu-icon"><i class="fas fa-quote-left"></i></div>
+          <span class="practice-menu-name">常用片語測驗 (Idioms)</span>
+          <p class="practice-menu-desc">精選實用英文片語與成語，挑戰雙語意思配對。</p>
+        </div>
+
+        <div class="practice-menu-card" data-category="sentence">
+          <div class="practice-menu-icon"><i class="fas fa-align-left"></i></div>
+          <span class="practice-menu-name">實用句型重組 (Sentences)</span>
+          <p class="practice-menu-desc">根據中文意思，將打亂的英文單字重新排列組合成正確句子。</p>
+        </div>
+
+        <div class="practice-menu-card" data-category="grammar">
+          <div class="practice-menu-icon"><i class="fas fa-exclamation-triangle"></i></div>
+          <span class="practice-menu-name">文法挑錯挑戰 (Grammar)</span>
+          <p class="practice-menu-desc">辨識並挑出句子中的文法錯誤，增強寫作與語法邏輯。</p>
         </div>
       </div>
 
@@ -387,6 +398,7 @@
   <input type="file" id="restore-file-input" style="display:none" accept=".json">
 
   <!-- 引入題目數據與邏輯 -->
+  <script src="ecdict_data.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>

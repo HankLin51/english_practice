@@ -245,8 +245,10 @@ function updateUIElements() {
   }
 
   // 側欄快速資訊
-  document.getElementById("sidebar-username").innerText = "學習挑戰者";
-  document.getElementById("sidebar-level").innerText = `LV.${state.level} • ${levelTitle}`;
+  const sidebarUser = document.getElementById("sidebar-username");
+  const sidebarLvl = document.getElementById("sidebar-level");
+  if (sidebarUser) sidebarUser.innerText = currentUser;
+  if (sidebarLvl) sidebarLvl.innerText = `LV.${state.level} • ${levelTitle}`;
 
   // 刷新特定面板的顯示
   updateReviewBoxCounts();
@@ -660,176 +662,183 @@ ${category === 'speaking' ? `
   }
 
   if (state.examGoal === "dict") {
-    // 顯示載入動畫
-    practiceActiveArea.innerHTML = `
-      <div style="text-align:center; padding:50px; color:var(--text-secondary);">
-        <i class="fas fa-spinner fa-spin" style="font-size:40px; margin-bottom:20px; color:var(--accent-green);"></i>
-        <h3>正在透過 Dictionary API 查詢生字庫與釋義...</h3>
-        <p style="margin-top:10px; font-size:14px;">正在建立英英解釋與發音，請稍候片刻。</p>
-      </div>
-    `;
+    // 檢查是不是片語、句型、文法等新模式
+    if (category === "phrase") {
+      const shuffled = [...PHRASES_DATA].sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, 10);
+      
+      const phraseQuestions = selected.map((item, index) => {
+        const correctDef = item.t;
+        const distractors = PHRASES_DATA
+          .filter(w => w.w !== item.w)
+          .map(w => w.t);
+        const selectedDistractors = [...distractors].sort(() => 0.5 - Math.random()).slice(0, 3);
+        const options = [...selectedDistractors];
+        const insertIdx = Math.floor(Math.random() * 4);
+        options.splice(insertIdx, 0, correctDef);
 
-    // 取得當前難度的隨機 5 個單字
-    const wordsPool = DICT_WORDLIST[category] || DICT_WORDLIST.level1;
-    const shuffledWords = [...wordsPool].sort(() => 0.5 - Math.random());
-    const selectedWords = shuffledWords.slice(0, 5);
+        return {
+          id: `phrase_${index}_${Date.now()}`,
+          question: `請問片語 "<strong>${item.w}</strong>" 的中文意思是？`,
+          options: options,
+          answer: insertIdx,
+          explanation: `<strong>${item.w}</strong><br>中文釋義：${correctDef}`
+        };
+      });
 
-    // 非同步獲取 5 個字的意思
-    const fetchPromises = selectedWords.map(word => {
-      return fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`)
-        .then(res => {
-          if (!res.ok) throw new Error("Word not found");
-          return res.json();
-        })
-        .then(data => {
-          const entry = data[0];
-          const phonetic = entry.phonetic || (entry.phonetics && entry.phonetics[0] ? entry.phonetics[0].text : "") || "";
-          
-          // 找出定義
-          let definition = "No definition found.";
-          let partOfSpeech = "n.";
-          if (entry.meanings && entry.meanings[0]) {
-            partOfSpeech = entry.meanings[0].partOfSpeech || "n.";
-            if (entry.meanings[0].definitions && entry.meanings[0].definitions[0]) {
-              definition = entry.meanings[0].definitions[0].definition;
-            }
-          }
-          
-          return {
-            word: word,
-            phonetic: phonetic,
-            partOfSpeech: partOfSpeech,
-            definition: definition
-          };
-        })
-        .catch(err => {
-          // 備用數據以防 API 失敗或某字沒查到
-          return {
-            word: word,
-            phonetic: "",
-            partOfSpeech: "n.",
-            definition: `The concept or action related to the word '${word}'.`
-          };
+      sessionState = {
+        category: "phrases", // 使用 phrases 觸發單選題 UI
+        questions: phraseQuestions,
+        currentIndex: 0,
+        score: 0,
+        wrongAnswers: [],
+        startTime: Date.now(),
+        isReviewSession: false
+      };
+      
+      renderQuestion();
+      return;
+    }
+
+    if (category === "sentence") {
+      const shuffled = [...SENTENCES_DATA].sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, 10);
+      
+      const sentenceQuestions = selected.map((item, index) => {
+        const cleanSentence = item.w.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "");
+        const originalWords = cleanSentence.split(/\s+/).filter(w => w.length > 0);
+        const shuffledWords = [...originalWords].sort(() => 0.5 - Math.random());
+        
+        const usedIndices = {};
+        const correctOrder = originalWords.map(word => {
+          const foundIdx = shuffledWords.findIndex((w, idx) => w === word && !usedIndices[idx]);
+          usedIndices[foundIdx] = true;
+          return foundIdx;
         });
+
+        return {
+          id: `sentence_${index}_${Date.now()}`,
+          chinese: item.t,
+          words: shuffledWords,
+          correctOrder: correctOrder,
+          explanation: `<strong>${item.w}</strong><br>翻譯：${item.t}`
+        };
+      });
+
+      sessionState = {
+        category: "sentences", // 使用 sentences 觸發句子重組 UI
+        questions: sentenceQuestions,
+        currentIndex: 0,
+        score: 0,
+        wrongAnswers: [],
+        startTime: Date.now(),
+        isReviewSession: false
+      };
+      
+      renderQuestion();
+      return;
+    }
+
+    if (category === "grammar") {
+      const shuffled = [...GRAMMAR_DATA].sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, 10);
+      
+      const grammarQuestions = selected.map((item, index) => {
+        const correctOpt = item.correct;
+        // 取得其他錯誤句子（完整物件，保留解析資訊）
+        const otherWrongItems = GRAMMAR_DATA
+          .filter(g => g.wrong !== item.wrong);
+        const selectedWrongItems = [...otherWrongItems].sort(() => 0.5 - Math.random()).slice(0, 3);
+        
+        // 組合選項與對應解析
+        const optionEntries = selectedWrongItems.map(g => ({
+          text: g.wrong,
+          isCorrect: false,
+          errorExplanation: `❌ 錯誤句：${g.wrong}<br>→ 正確應為：${g.correct}<br>→ ${g.t}`
+        }));
+        const insertIdx = Math.floor(Math.random() * 4);
+        optionEntries.splice(insertIdx, 0, {
+          text: correctOpt,
+          isCorrect: true,
+          errorExplanation: `✅ 此為正確句子。`
+        });
+
+        const options = optionEntries.map(e => e.text);
+        const optionDetails = optionEntries; // 保留完整解析供答題後顯示
+
+        return {
+          id: `grammar_${index}_${Date.now()}`,
+          question: `下列句子中，請選出唯一<strong>語法完全正確</strong>的句子：`,
+          options: options,
+          answer: insertIdx,
+          optionDetails: optionDetails,
+          explanation: `<strong>正確句子：</strong>${correctOpt}<br><strong>解析說明：</strong>${item.t}`
+        };
+      });
+
+      sessionState = {
+        category: "grammar", // 使用 grammar 觸發單選題 UI
+        questions: grammarQuestions,
+        currentIndex: 0,
+        score: 0,
+        wrongAnswers: [],
+        startTime: Date.now(),
+        isReviewSession: false
+      };
+      
+      renderQuestion();
+      return;
+    }
+
+    // 取得當前難度的隨機 10 個單字
+    const wordsPool = (typeof ECDICT_DATA !== 'undefined' ? ECDICT_DATA[category] : null) || DICT_WORDLIST[category] || [];
+    if (wordsPool.length === 0) {
+      alert("此分類目前沒有可用的題目資料。");
+      exitPractice();
+      return;
+    }
+    const shuffledWords = [...wordsPool].sort(() => 0.5 - Math.random());
+    const selectedWords = shuffledWords.slice(0, 10);
+
+    const dictQuestions = selectedWords.map((item, index) => {
+      const correctDef = item.t;
+
+      // 從其餘的單字中隨機抽取 3 個定義作為干擾選項
+      const distractors = wordsPool
+        .filter(w => w.w !== item.w)
+        .map(w => w.t);
+      
+      // 隨機打亂干擾項並取 3 個
+      const selectedDistractors = [...distractors].sort(() => 0.5 - Math.random()).slice(0, 3);
+      
+      // 組合並打亂選項
+      const options = [...selectedDistractors];
+      const insertIdx = Math.floor(Math.random() * 4);
+      options.splice(insertIdx, 0, correctDef);
+
+      return {
+        id: `api_dict_${category}_${index}_${Date.now()}`,
+        word: item.w,
+        phonetic: "",
+        partOfSpeech: "",
+        question: `請問 "<strong>${item.w}</strong>" 的中文意思是？`,
+        options: options,
+        answer: insertIdx,
+        explanation: `<strong>${item.w}</strong><br>定義：${correctDef}`
+      };
     });
 
-    Promise.all(fetchPromises)
-      .then(wordDetails => {
-        // 現在我們有了 5 個單字的詳細內容，我們來構建 5 道選擇題！
-        const dictQuestions = wordDetails.map((item, index) => {
-          const correctDef = item.definition;
-
-          // 從其餘的單字中隨機抽取 3 個定義作為干擾選項
-          const distractors = wordDetails
-            .filter((_, idx) => idx !== index)
-            .map(w => w.definition);
-          
-          // 隨機打亂干擾項並取 3 個
-          const selectedDistractors = distractors.sort(() => 0.5 - Math.random()).slice(0, 3);
-          
-          // 組合並打亂選項
-          const options = [...selectedDistractors];
-          const insertIdx = Math.floor(Math.random() * 4);
-          options.splice(insertIdx, 0, correctDef);
-
-          return {
-            id: `api_dict_${category}_${index}_${Date.now()}`,
-            word: item.word,
-            phonetic: item.phonetic,
-            partOfSpeech: item.partOfSpeech,
-            question: `Which of the following is the correct definition of the word "<strong>${item.word}</strong>"?`,
-            options: options,
-            answer: insertIdx,
-            explanation: `<strong>${item.word}</strong> [${item.partOfSpeech}] ${item.phonetic}<br>定義：${correctDef}`
-          };
-        });
-
-        sessionState = {
-          category: category,
-          questions: dictQuestions,
-          currentIndex: 0,
-          score: 0,
-          wrongAnswers: [],
-          startTime: Date.now(),
-          isReviewSession: false
-        };
-
-        renderQuestion();
-      })
-      .catch(err => {
-        console.error("單字載入失敗:", err);
-        alert("加載單字資料庫失敗，請檢查網路連線。");
-        exitPractice();
-      });
-    return;
-  }
-
-  if (state.examGoal === "api") {
-    // 顯示載入動畫
-    practiceActiveArea.innerHTML = `
-      <div style="text-align:center; padding:50px; color:var(--text-secondary);">
-        <i class="fas fa-spinner fa-spin" style="font-size:40px; margin-bottom:20px; color:var(--primary);"></i>
-        <h3>正在從雲端 API 載入國際題庫...</h3>
-        <p style="margin-top:10px; font-size:14px;">這需要連接網路，請稍候片刻。</p>
-      </div>
-    `;
-
-    // 對照 OpenTDB Category IDs
-    const apiCategories = {
-      gk: 9,
-      science: 17,
-      history: 23,
-      geography: 22,
-      animals: 27
+    sessionState = {
+      category: category,
+      questions: dictQuestions,
+      currentIndex: 0,
+      score: 0,
+      wrongAnswers: [],
+      startTime: Date.now(),
+      isReviewSession: false
     };
-    const catId = apiCategories[category] || 9;
-    
-    fetch(`https://opentdb.com/api.php?amount=5&category=${catId}&type=multiple`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.response_code !== 0 || !data.results || data.results.length === 0) {
-          alert("載入線上題庫失敗，請稍後再試。");
-          exitPractice();
-          return;
-        }
 
-        // 解析並重組為我們系統的格式
-        const apiQuestions = data.results.map((item, index) => {
-          const decodedQuestion = decodeHtml(item.question);
-          const decodedCorrect = decodeHtml(item.correct_answer);
-          const decodedIncorrects = item.incorrect_answers.map(ans => decodeHtml(ans));
-          
-          // 隨機插入正確答案到選項中
-          const options = [...decodedIncorrects];
-          const insertIdx = Math.floor(Math.random() * 4);
-          options.splice(insertIdx, 0, decodedCorrect);
-
-          return {
-            id: `api_${category}_${index}_${Date.now()}`,
-            question: decodedQuestion,
-            options: options,
-            answer: insertIdx,
-            explanation: `來源：Open Trivia Database (${item.category} / 難度：${item.difficulty})。`
-          };
-        });
-
-        sessionState = {
-          category: category,
-          questions: apiQuestions,
-          currentIndex: 0,
-          score: 0,
-          wrongAnswers: [],
-          startTime: Date.now(),
-          isReviewSession: false
-        };
-
-        renderQuestion();
-      })
-      .catch(err => {
-        console.error("API 載入失敗:", err);
-        alert("無法連線至線上題庫，請檢查您的網路連線。");
-        exitPractice();
-      });
+    renderQuestion();
     return;
   }
 
@@ -1102,6 +1111,22 @@ function checkMultipleChoiceAnswer(selectedIndex, correctIndex) {
   if (state.examGoal !== "rn" && (q.sentenceTranslation || q.translation)) {
     transHtml = `<p><strong>範例翻譯：</strong>${q.sentenceTranslation || q.translation || ''}</p>`;
   }
+
+  // 文法挑錯模式：顯示每個選項的詳細解析
+  let grammarDetailsHtml = "";
+  if (q.optionDetails && q.optionDetails.length > 0) {
+    grammarDetailsHtml = `
+      <div style="margin-top:14px; border-top:1px solid rgba(255,255,255,0.1); padding-top:12px;">
+        <h4 style="font-size:15px; margin-bottom:10px; color:var(--text-secondary);">📝 各選項逐一解析：</h4>
+        ${q.optionDetails.map((detail, i) => `
+          <div style="padding:10px 12px; margin-bottom:8px; border-radius:8px; background:${detail.isCorrect ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.08)'}; border-left:3px solid ${detail.isCorrect ? 'var(--accent-green)' : 'var(--accent-red)'}; font-size:14px; line-height:1.6;">
+            <span style="color:${detail.isCorrect ? 'var(--accent-green)' : 'var(--accent-red)'}; font-weight:600;">選項 ${String.fromCharCode(65 + i)}：</span>
+            ${detail.errorExplanation}
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
   
   expBox.innerHTML = `
     <div class="explanation-card">
@@ -1109,6 +1134,7 @@ function checkMultipleChoiceAnswer(selectedIndex, correctIndex) {
       <p><strong>題目內文：</strong>${q.sentence || q.prompt || q.question}</p>
       ${transHtml}
       <p style="margin-top:10px;"><strong>回饋解析：</strong>${q.explanation}</p>
+      ${grammarDetailsHtml}
     </div>
   `;
 
@@ -1191,7 +1217,7 @@ function submitSentenceAssembly() {
     <div class="explanation-card">
       <h4>${isCorrect ? '✨ 回答正確！' : '❌ 答錯了，標準句子結構：'}</h4>
       <p style="font-size:18px; color: var(--primary); font-weight:700; margin-bottom:8px;">
-        ${q.words.map((w, idx) => q.words[q.correctOrder.indexOf(idx)]).join(" ")}
+        ${q.correctOrder.map(idx => q.words[idx]).join(" ")}
       </p>
       <p><strong>回饋解析：</strong>${q.explanation}</p>
     </div>
@@ -2034,12 +2060,6 @@ function switchExamGoal(goal) {
     sessionState = null;
     document.getElementById("practice-active-area").style.display = "none";
   }
-
-  // 強制導回儀表板
-  const dashboardItem = document.querySelector('.nav-item[data-target="dashboard"]');
-  if (dashboardItem) {
-    dashboardItem.click();
-  }
 }
 
 function updateExamGoalUI() {
@@ -2171,11 +2191,12 @@ function renderPracticeMenu() {
   if (cards.length < 5) return;
 
   if (state.examGoal === "rn") {
-    updateMenuCard(cards[0], "pharmacology", "fas fa-pills", "藥理學 (Pharmacology)", "給藥評估、抗凝血劑、利尿劑等臨床用藥英文考題與監測指標。");
-    updateMenuCard(cards[1], "medSurg", "fas fa-stethoscope", "內外科護理 (Med-Surg)", "涵蓋甲狀腺切除、心臟衰竭、糖尿病酮酸中毒等系統性臨床護理考點。");
-    updateMenuCard(cards[2], "pediatric", "fas fa-baby", "兒科護理 (Pediatric)", "急性會厭炎、乳糜瀉飲食管理等兒童成長與急症護理測驗。");
-    updateMenuCard(cards[3], "maternity", "fas fa-heartbeat", "產科婦幼 (Maternity)", "前置胎盤、胎盤早剝、催產素點點滴監測等婦產科高頻考題。");
-    updateMenuCard(cards[4], "dialogue", "fas fa-user-nurse", "臨床護理口說 (Speaking)", "練習護理人員與患者及家容溝通的日常職場英語口說。");
+    const rnCount = (cat) => (RN_DATA[cat] ? RN_DATA[cat].length : 0);
+    updateMenuCard(cards[0], "pharmacology", "fas fa-pills", "藥理學 (Pharmacology)", "給藥評估、抗凝血劑、利尿劑等臨床用藥英文考題與監測指標。", rnCount("pharmacology"));
+    updateMenuCard(cards[1], "medSurg", "fas fa-stethoscope", "內外科護理 (Med-Surg)", "涵蓋甲狀腺切除、心臟衰竭、糖尿病酮酸中毒等系統性臨床護理考點。", rnCount("medSurg"));
+    updateMenuCard(cards[2], "pediatric", "fas fa-baby", "兒科護理 (Pediatric)", "急性會厭炎、乳糜瀉飲食管理等兒童成長與急症護理測驗。", rnCount("pediatric"));
+    updateMenuCard(cards[3], "maternity", "fas fa-heartbeat", "產科婦幼 (Maternity)", "前置胎盤、胎盤早剝、催產素點點滴監測等婦產科高頻考題。", rnCount("maternity"));
+    updateMenuCard(cards[4], "dialogue", "fas fa-user-nurse", "臨床護理口說 (Speaking)", "練習護理人員與患者及家容溝通的日常職場英語口說。", rnCount("dialogue"));
   } else if (state.examGoal === "api") {
     updateMenuCard(cards[0], "gk", "fas fa-globe", "綜合英語常識", "挑戰包含生活科普、常識等多元主題的雲端隨機英語閱讀測驗。");
     updateMenuCard(cards[1], "science", "fas fa-atom", "科學與自然", "向雲端伺服器載入最新的科學、物理、化學與自然生態英文題目。");
@@ -2189,19 +2210,44 @@ function renderPracticeMenu() {
     updateMenuCard(cards[3], "dialogue", "fas fa-comments", "AI 情境對話", "AI 精選實用商業或生活場景對話，提供互動式克漏字閱讀。");
     updateMenuCard(cards[4], "speaking", "fas fa-microphone", "AI 職場口說", "利用語音辨識大聲唸出 AI 為您生成的職場溝通例句，賺取金幣！");
   } else {
-    updateMenuCard(cards[0], "level1", "fas fa-leaf", "Level 1 (基礎單字 - A1)", "精選生活與社交基礎詞彙，透過英英釋義建立直覺語感。");
-    updateMenuCard(cards[1], "level2", "fas fa-seedling", "Level 2 (初級單字 - A2)", "進階日常與基礎描述詞彙，學習如何精確傳達想法。");
-    updateMenuCard(cards[2], "level3", "fas fa-tree", "Level 3 (中級單字 - B1)", "涵蓋學術與工作常用基礎詞彙，提升英文聽讀理解力。");
-    updateMenuCard(cards[3], "level4", "fas fa-graduation-cap", "Level 4 (中高單字 - B2)", "商務、時事與思辨核心詞彙，挑戰更流暢的英文表達。");
-    updateMenuCard(cards[4], "level5", "fas fa-crown", "Level 5 (高級單字 - C1)", "高難度、文學及專業論述詞彙，適合追求英文完美的挑戰者。");
+    const l1Count = (typeof ECDICT_DATA !== 'undefined' && ECDICT_DATA.level1) ? ECDICT_DATA.level1.length : (DICT_WORDLIST.level1 ? DICT_WORDLIST.level1.length : 0);
+    const l2Count = (typeof ECDICT_DATA !== 'undefined' && ECDICT_DATA.level2) ? ECDICT_DATA.level2.length : (DICT_WORDLIST.level2 ? DICT_WORDLIST.level2.length : 0);
+    const l3Count = (typeof ECDICT_DATA !== 'undefined' && ECDICT_DATA.level3) ? ECDICT_DATA.level3.length : (DICT_WORDLIST.level3 ? DICT_WORDLIST.level3.length : 0);
+    const l4Count = (typeof ECDICT_DATA !== 'undefined' && ECDICT_DATA.level4) ? ECDICT_DATA.level4.length : (DICT_WORDLIST.level4 ? DICT_WORDLIST.level4.length : 0);
+    const l5Count = (typeof ECDICT_DATA !== 'undefined' && ECDICT_DATA.level5) ? ECDICT_DATA.level5.length : (DICT_WORDLIST.level5 ? DICT_WORDLIST.level5.length : 0);
+    const phraseCount = (typeof PHRASES_DATA !== 'undefined') ? PHRASES_DATA.length : 0;
+    const sentenceCount = (typeof SENTENCES_DATA !== 'undefined') ? SENTENCES_DATA.length : 0;
+    const grammarCount = (typeof GRAMMAR_DATA !== 'undefined') ? GRAMMAR_DATA.length : 0;
+
+    updateMenuCard(cards[0], "level1", "fas fa-leaf", "Level 1 (基礎單字 - A1)", "精選生活與社交基礎詞彙，透過英英釋義建立直覺語感。", l1Count);
+    updateMenuCard(cards[1], "level2", "fas fa-seedling", "Level 2 (初級單字 - A2)", "進階日常與基礎描述詞彙，學習如何精確傳達想法。", l2Count);
+    updateMenuCard(cards[2], "level3", "fas fa-tree", "Level 3 (中級單字 - B1)", "涵蓋學術與工作常用基礎詞彙，提升英文聽讀理解力。", l3Count);
+    updateMenuCard(cards[3], "level4", "fas fa-graduation-cap", "Level 4 (中高單字 - B2)", "商務、時事與思辨核心詞彙，挑戰更流暢的英文表達。", l4Count);
+    updateMenuCard(cards[4], "level5", "fas fa-crown", "Level 5 (高級單字 - C1)", "高難度、文學及專業論述詞彙，適合追求英文完美的挑戰者。", l5Count);
+    // 片語、句型、文法卡片（如果存在）
+    if (cards.length > 5) updateMenuCard(cards[5], "phrase", "fas fa-quote-left", "常用片語測驗 (Idioms)", "精選實用英文片語與成語，挑戰雙語意思配對。", phraseCount);
+    if (cards.length > 6) updateMenuCard(cards[6], "sentence", "fas fa-align-left", "實用句型重組 (Sentences)", "根據中文意思，將打亂的英文單字重新排列組合成正確句子。", sentenceCount);
+    if (cards.length > 7) updateMenuCard(cards[7], "grammar", "fas fa-exclamation-triangle", "文法挑錯挑戰 (Grammar)", "辨識並挑出句子中的文法錯誤，增強寫作與語法邏輯。", grammarCount);
   }
 }
 
-function updateMenuCard(card, category, iconClass, name, desc) {
+function updateMenuCard(card, category, iconClass, name, desc, count) {
   card.dataset.category = category;
   card.querySelector(".practice-menu-icon").innerHTML = `<i class="${iconClass}"></i>`;
   card.querySelector(".practice-menu-name").innerText = name;
   card.querySelector(".practice-menu-desc").innerText = desc;
+  // 顯示題庫數量徽章
+  let countBadge = card.querySelector(".practice-menu-count");
+  if (count !== undefined && count > 0) {
+    if (!countBadge) {
+      countBadge = document.createElement("span");
+      countBadge.className = "practice-menu-count";
+      card.appendChild(countBadge);
+    }
+    countBadge.innerHTML = `<i class="fas fa-database" style="margin-right:4px; font-size:10px;"></i>${count} 題`;
+  } else if (countBadge) {
+    countBadge.remove();
+  }
 }
 
 // --- 11. 多帳號管理視窗與備份匯入還原邏輯 ---
@@ -2393,9 +2439,283 @@ function handleRestoreFileSelected(e) {
     } catch(err) {
       alert("讀取檔案出錯，請確認該檔案是否為正確的 JSON 格式。");
     }
-    // 清除選擇
-    e.target.value = "";
+  e.target.value = "";
   };
   reader.readAsText(file);
 }
 
+const PHRASES_DATA = [
+  // --- Original 40 entries ---
+  { w: "break a leg", t: "祝好運；祝演出成功" },
+  { w: "call it a day", t: "今天就到此為止；收工" },
+  { w: "bite the bullet", t: "咬緊牙關；硬著頭皮面對" },
+  { w: "cut corners", t: "投機取巧；偷工減料" },
+  { w: "under the weather", t: "身體不舒服；生病" },
+  { w: "spill the beans", t: "洩露秘密" },
+  { w: "piece of cake", t: "輕而易舉的事" },
+  { w: "once in a blue moon", t: "千載難逢；極為罕見" },
+  { w: "hit the sack", t: "上床睡覺" },
+  { w: "let the cat out of the bag", t: "無意中洩露秘密" },
+  { w: "burn the midnight oil", t: "熬夜；挑燈夜戰" },
+  { w: "cost an arm and a leg", t: "極其昂貴" },
+  { w: "face the music", t: "面對現實；接受懲罰" },
+  { w: "on the fence", t: "猶豫不決；觀望態度" },
+  { w: "see eye to eye", t: "看法一致；達成共識" },
+  { w: "take it with a grain of salt", t: "對此持保留態度；半信半疑" },
+  { w: "the last straw", t: "導火線；忍無可忍的最後極限" },
+  { w: "through thick and thin", t: "共患難；歷經風雨" },
+  { w: "rule of thumb", t: "經驗法則；實用原則" },
+  { w: "keep your fingers crossed", t: "祈求好運" },
+  { w: "blow off steam", t: "宣洩情緒；釋放壓力" },
+  { w: "bark up the wrong tree", t: "尋錯對象；想錯方向" },
+  { w: "get out of hand", t: "失去控制；不可收拾" },
+  { w: "hang in there", t: "堅持下去；忍耐一下" },
+  { w: "hit the nail on the head", t: "一針見血；說得中肯" },
+  { w: "look before you leap", t: "三思而後行" },
+  { w: "miss the boat", t: "錯失良機" },
+  { w: "pull yourself together", t: "振作起來；恢復理智" },
+  { w: "so far so good", t: "目前為止一切都好" },
+  { w: "speak of the devil", t: "說到曹操，曹操就到" },
+  { w: "take it easy", t: "放輕鬆；別緊張" },
+  { w: "up in the air", t: "懸而未決；尚無定論" },
+  { w: "actions speak louder than words", t: "事實勝於雄辯；行動重於空談" },
+  { w: "add fuel to the fire", t: "火上澆油" },
+  { w: "beat around the bush", t: "拐彎抹角；說話繞圈子" },
+  { w: "cry over spilled milk", t: "為無可挽回的後悔；做無益懊悔" },
+  { w: "every cloud has a silver lining", t: "黑暗中總有一線生機；否極泰來" },
+  { w: "it takes two to tango", t: "一個巴掌拍不響；雙方都有責任" },
+  { w: "kill two birds with one stone", t: "一箭雙雕；一石二鳥" },
+  { w: "look on the bright side", t: "看事情的好一面；樂觀一點" },
+  // --- New entries (41–120) ---
+  { w: "break the ice", t: "打破僵局" },
+  { w: "a blessing in disguise", t: "塞翁失馬，焉知非福" },
+  { w: "get cold feet", t: "臨陣退縮；怯場" },
+  { w: "jump on the bandwagon", t: "趕潮流；隨大流" },
+  { w: "on cloud nine", t: "欣喜若狂；九霄雲外般的快樂" },
+  { w: "in the same boat", t: "同病相憐；處境相同" },
+  { w: "when pigs fly", t: "不可能的事；太陽打西邊出來" },
+  { w: "cut to the chase", t: "直奔主題；開門見山" },
+  { w: "the ball is in your court", t: "該你做決定了；現在輪到你了" },
+  { w: "go the extra mile", t: "加倍努力；多做一些" },
+  { w: "a penny for your thoughts", t: "在想什麼？告訴我你的想法" },
+  { w: "back to square one", t: "回到原點；從頭再來" },
+  { w: "the tip of the iceberg", t: "冰山一角" },
+  { w: "sit on the fence", t: "保持中立；觀望不決" },
+  { w: "hit the road", t: "出發；上路" },
+  { w: "go with the flow", t: "順其自然；隨波逐流" },
+  { w: "keep an eye on", t: "留意；注意" },
+  { w: "play it by ear", t: "隨機應變；見機行事" },
+  { w: "wrap your head around", t: "理解；弄明白" },
+  { w: "by the skin of your teeth", t: "勉強地；差一點就不行" },
+  { w: "ring a bell", t: "聽起來耳熟" },
+  { w: "at the drop of a hat", t: "毫不猶豫地；立刻" },
+  { w: "give someone the cold shoulder", t: "冷落某人；故意忽視" },
+  { w: "a taste of your own medicine", t: "自食其果；以其人之道還治其人之身" },
+  { w: "let sleeping dogs lie", t: "別自找麻煩；別揭舊瘡疤" },
+  { w: "the whole nine yards", t: "全部；所有的一切" },
+  { w: "turn a blind eye", t: "視而不見；故意忽略" },
+  { w: "put all your eggs in one basket", t: "孤注一擲" },
+  { w: "steal someone's thunder", t: "搶了某人的風頭" },
+  { w: "read between the lines", t: "讀出言外之意；體會弦外之音" },
+  { w: "pull someone's leg", t: "開某人的玩笑；逗弄" },
+  { w: "water under the bridge", t: "已經過去的事；既往不咎" },
+  { w: "on the same page", t: "意見一致；達成共識" },
+  { w: "think outside the box", t: "跳脫框架思考；突破常規" },
+  { w: "get the ball rolling", t: "開始行動；啟動" },
+  { w: "in hot water", t: "惹上麻煩；陷入困境" },
+  { w: "keep it under wraps", t: "保密；隱藏" },
+  { w: "leave no stone unturned", t: "不遺餘力；想盡辦法" },
+  { w: "make ends meet", t: "勉強維持生計；收支平衡" },
+  { w: "no pain, no gain", t: "不勞無獲；一分耕耘一分收穫" },
+  { w: "out of the blue", t: "出乎意料地；突然" },
+  { w: "shape up or ship out", t: "要嘛改進，不然就走人" },
+  { w: "time flies", t: "時光飛逝" },
+  { w: "easier said than done", t: "說起來容易做起來難" },
+  { w: "a stone's throw", t: "一箭之遙；非常近的距離" },
+  { w: "run out of steam", t: "精疲力竭；失去動力" },
+  { w: "turn over a new leaf", t: "改過自新；重新開始" },
+  { w: "cross that bridge when you come to it", t: "到時候再說；船到橋頭自然直" },
+  { w: "the elephant in the room", t: "大家心知肚明卻避而不談的問題" },
+  { w: "bite off more than you can chew", t: "貪多嚼不爛；不自量力" },
+  { w: "have a change of heart", t: "改變心意" },
+  { w: "put your foot down", t: "堅決反對；堅持立場" },
+  { w: "go back to the drawing board", t: "重新規劃；從頭再來" },
+  { w: "sleep on it", t: "考慮一晚再決定" },
+  { w: "take the bull by the horns", t: "勇敢面對困難" },
+  { w: "call the shots", t: "做決定；發號施令" },
+  { w: "come rain or shine", t: "不論晴雨；無論如何" },
+  { w: "down to earth", t: "腳踏實地；務實的" },
+  { w: "from scratch", t: "從零開始；從頭做起" },
+  { w: "get your act together", t: "振作起來；好好表現" },
+  { w: "in a nutshell", t: "簡而言之；總而言之" },
+  { w: "jump the gun", t: "操之過急；過早行動" },
+  { w: "know the ropes", t: "熟悉內情；了解竅門" },
+  { w: "on thin ice", t: "處境危險；如履薄冰" },
+  { w: "rain or shine", t: "風雨無阻" },
+  { w: "save for a rainy day", t: "未雨綢繆；存錢以備不時之需" },
+  { w: "take a rain check", t: "改天再約；延期" },
+  { w: "two heads are better than one", t: "三個臭皮匠勝過一個諸葛亮" },
+  { w: "walk on eggshells", t: "小心翼翼；如履薄冰" },
+  { w: "you can't judge a book by its cover", t: "人不可貌相；不能以貌取人" },
+  { w: "hold your horses", t: "耐心等一下；別急" },
+  { w: "back to the drawing board", t: "推倒重來；回到原點重新規劃" },
+  { w: "catch someone red-handed", t: "當場抓住某人；人贓俱獲" },
+  { w: "give the benefit of the doubt", t: "姑且相信；先假設對方無辜" },
+  { w: "make a long story short", t: "長話短說" },
+  { w: "the best of both worlds", t: "兩全其美" },
+  { w: "under the table", t: "私下地；檯面下交易" },
+  { w: "wrap up", t: "結束；完成" },
+  { w: "zip your lip", t: "閉嘴；保持沉默" },
+  { w: "nip it in the bud", t: "防患於未然；把問題扼殺在萌芽中" },
+  { w: "on the dot", t: "準時地；一秒不差" }
+];
+
+const SENTENCES_DATA = [
+  // --- Original 20 entries ---
+  { w: "I look forward to hearing from you soon.", t: "我期待很快收到您的回信。" },
+  { w: "Could you please let me know when you are free?", t: "可以請您讓我知道您什麼時候有空嗎？" },
+  { w: "It is important to keep a balance between work and life.", t: "在工作和生活之間保持平衡是重要的事。" },
+  { w: "She has been studying English for more than three years.", t: "她已經學習英語三年多了。" },
+  { w: "The sooner you start, the better the result will be.", t: "你越早開始，結果就會越好。" },
+  { w: "We should take full advantage of the online resources.", t: "我們應該充分利用網路資源。" },
+  { w: "He made up his mind to start his own business.", t: "他下定決心要自己創業。" },
+  { w: "Under no circumstances should you share your password.", t: "在任何情況下，您都不應該分享您的密碼。" },
+  { w: "Although it was raining, they decided to go for a walk.", t: "雖然在下雨，他們還是決定去散步。" },
+  { w: "I would appreciate it if you could reply by Friday.", t: "如果您能在星期五之前回覆，我將不勝感激。" },
+  { w: "It takes a lot of practice to speak a foreign language fluently.", t: "要流暢地說一門外語需要大量的練習。" },
+  { w: "The movie was so interesting that I watched it twice.", t: "這部電影太有趣了，以至於我看了兩次。" },
+  { w: "No matter what happens, I will always stand by your side.", t: "不管發生什麼事，我都會一直站在你身邊。" },
+  { w: "We had to put off the meeting because of the bad weather.", t: "因為惡劣的天氣，我們不得不延期會議。" },
+  { w: "I am not used to getting up early in the morning.", t: "我不習慣在早上早起。" },
+  { w: "It is never too late to learn what is useful.", t: "學習有用的東西，活到老學到老。" },
+  { w: "He was about to leave when the phone suddenly rang.", t: "他正要離開，電話突然響了。" },
+  { w: "They succeeded in completing the project on schedule.", t: "他們成功地按時完成了這個專案。" },
+  { w: "The doctor advised him to give up smoking immediately.", t: "醫生建議他立即戒菸。" },
+  { w: "I wonder if you could help me solve this problem.", t: "不知您是否能幫我解決這個問題。" },
+  // --- New entries (21–80) ---
+  { w: "If I had known earlier, I would have made a different decision.", t: "如果我早知道的話，我會做出不同的決定。" },
+  { w: "The book that she recommended to me was very inspiring.", t: "她推薦給我的那本書非常鼓舞人心。" },
+  { w: "Not only is he smart, but he is also hardworking.", t: "他不僅聰明，而且還很勤奮。" },
+  { w: "Please make sure to turn off the lights before leaving.", t: "離開前請確保關燈。" },
+  { w: "The harder you practice, the more confident you will become.", t: "你練習得越努力，就會變得越有自信。" },
+  { w: "I have been waiting here for almost two hours.", t: "我已經在這裡等了將近兩個小時。" },
+  { w: "The project was completed ahead of the original schedule.", t: "這個專案比原定計畫提前完成了。" },
+  { w: "She asked me whether I had finished the assignment yet.", t: "她問我是否已經完成作業了。" },
+  { w: "By the time we arrived, the concert had already started.", t: "當我們到達時，演唱會已經開始了。" },
+  { w: "He is the kind of person who never gives up easily.", t: "他是那種從不輕易放棄的人。" },
+  { w: "Would you mind closing the window for me, please?", t: "請問您介意幫我關一下窗戶嗎？" },
+  { w: "The company plans to expand its operations to Europe next year.", t: "該公司計畫明年將業務擴展到歐洲。" },
+  { w: "Had she studied harder, she would have passed the exam.", t: "她如果讀書更努力的話，就會通過考試了。" },
+  { w: "There is no point in arguing about something we cannot change.", t: "爭論我們無法改變的事情是沒有意義的。" },
+  { w: "I wish I could travel around the world someday.", t: "我希望有一天能環遊世界。" },
+  { w: "The new policy will take effect at the beginning of next month.", t: "新政策將於下個月初生效。" },
+  { w: "Neither the students nor the teacher was satisfied with the result.", t: "學生和老師都對結果不滿意。" },
+  { w: "You had better leave now, or you will miss the last train.", t: "你最好現在就走，否則會錯過最後一班火車。" },
+  { w: "The reason why he was late is that his car broke down.", t: "他遲到的原因是他的車壞了。" },
+  { w: "It is widely believed that education plays a vital role in society.", t: "人們普遍認為教育在社會中扮演重要角色。" },
+  { w: "She regretted not having accepted the job offer last month.", t: "她後悔上個月沒有接受那份工作邀請。" },
+  { w: "Only after the meeting did I realize the importance of the issue.", t: "直到會議之後，我才意識到這個問題的重要性。" },
+  { w: "The teacher asked us to hand in our homework by tomorrow.", t: "老師要求我們明天之前交作業。" },
+  { w: "You should always be honest with the people around you.", t: "你應該始終對身邊的人誠實。" },
+  { w: "I cannot help wondering what life would be like in another country.", t: "我不禁想知道在另一個國家生活會是什麼樣子。" },
+  { w: "The restaurant where we had dinner last night was fantastic.", t: "我們昨晚吃飯的那家餐廳非常棒。" },
+  { w: "We are supposed to arrive at the airport two hours in advance.", t: "我們應該提前兩個小時到達機場。" },
+  { w: "It suddenly occurred to me that I had left my keys at home.", t: "我突然想到我把鑰匙忘在家裡了。" },
+  { w: "He spoke so fast that nobody could understand him clearly.", t: "他說得太快了，沒有人能清楚地聽懂他。" },
+  { w: "The city where I grew up has changed a lot over the years.", t: "我長大的那座城市這些年來變化很大。" },
+  { w: "She insisted on paying for the dinner even though I offered.", t: "即使我提出要付，她仍堅持買單。" },
+  { w: "What matters most is not the result but the effort you put in.", t: "最重要的不是結果，而是你付出的努力。" },
+  { w: "If the weather permits, we will go hiking this weekend.", t: "如果天氣允許的話，我們這個週末去爬山。" },
+  { w: "The students were told to remain seated until the bell rang.", t: "學生們被告知要坐在座位上直到鈴響。" },
+  { w: "I have never seen such a beautiful sunset in my entire life.", t: "我這輩子從沒見過這麼美的日落。" },
+  { w: "He apologized for being late to the meeting this morning.", t: "他為今天早上開會遲到而道歉。" },
+  { w: "They are looking forward to visiting their grandparents next week.", t: "他們期待下週去探望祖父母。" },
+  { w: "The museum is located in the center of the old town.", t: "博物館位於老城區的中心。" },
+  { w: "I used to play the piano when I was a child.", t: "我小時候常常彈鋼琴。" },
+  { w: "Unless you hurry up, we will not be able to catch the bus.", t: "除非你快一點，否則我們趕不上公車。" },
+  { w: "She is one of the most talented musicians I have ever met.", t: "她是我見過最有天賦的音樂家之一。" },
+  { w: "The experiment was carried out under very strict conditions.", t: "這個實驗是在非常嚴格的條件下進行的。" },
+  { w: "It is no use complaining about things that have already happened.", t: "抱怨已經發生的事情是沒有用的。" },
+  { w: "Despite the heavy traffic, she managed to arrive on time.", t: "儘管交通擁擠，她還是設法準時到達了。" },
+  { w: "He denied having anything to do with the incident.", t: "他否認與那起事件有任何關係。" },
+  { w: "The children were so excited that they could not fall asleep.", t: "孩子們太興奮了，以至於無法入睡。" },
+  { w: "You might as well take an umbrella in case it rains.", t: "你不如帶把傘以防下雨。" },
+  { w: "Rarely does she complain about her workload at the office.", t: "她很少抱怨辦公室的工作量。" },
+  { w: "Learning a new language requires both patience and dedication.", t: "學習一門新語言需要耐心和毅力。" },
+  { w: "The problem is too complicated for me to solve on my own.", t: "這個問題太複雜了，我無法獨自解決。" },
+  { w: "He promised that he would finish the report by next Monday.", t: "他承諾下週一之前會完成報告。" },
+  { w: "Were it not for your help, I would have failed the exam.", t: "要不是有你的幫助，我考試就不及格了。" },
+  { w: "They have known each other since they were in elementary school.", t: "他們從小學起就認識彼此了。" },
+  { w: "The speech given by the professor was thought-provoking and inspiring.", t: "教授的演講發人深省且鼓舞人心。" },
+  { w: "I would rather stay home than go out in this terrible weather.", t: "我寧願待在家裡，也不想在這種糟糕的天氣出門。" },
+  { w: "Not until I read the email did I understand the whole situation.", t: "直到我讀了那封電郵，才了解了整個情況。" },
+  { w: "She reminded me to bring my passport to the airport.", t: "她提醒我把護照帶到機場。" },
+  { w: "We must take immediate action to protect the environment.", t: "我們必須立即採取行動來保護環境。" },
+  { w: "It was not until midnight that he finally finished his homework.", t: "直到午夜他才終於完成了作業。" },
+  { w: "The manager asked everyone to submit a weekly progress report.", t: "經理要求每個人提交每週進度報告。" }
+];
+
+const GRAMMAR_DATA = [
+  // --- Original 15 entries ---
+  { wrong: "He don't like apples.", correct: "He doesn't like apples.", t: "第三人稱單數 (He) 否定助動詞應使用 doesn't 而非 don't。" },
+  { wrong: "She has been went to Japan twice.", correct: "She has been to Japan twice.", t: "表示「去過某地」的完成式結構使用 has been to，went 是過去式動詞，在此為多餘。" },
+  { wrong: "I look forward to meet you.", correct: "I look forward to meeting you.", t: "look forward to 中的 to 是介系詞，後面須接動名詞 (V-ing) 或名詞。" },
+  { wrong: "Although he is tired, but he still works.", correct: "Although he is tired, he still works.", t: "連接詞 although (雖然) 與 but (但是) 在英文語法中不可同時出現在同一個句子中。" },
+  { wrong: "The information are very useful.", correct: "The information is very useful.", t: "information (資訊) 是不可數名詞，單數主詞的 Be 動詞應使用 is。" },
+  { wrong: "Every students needs a textbook.", correct: "Every student needs a textbook.", t: "every (每個) 後面接單數可數名詞，因此應為 every student。" },
+  { wrong: "I have visited Paris last year.", correct: "I visited Paris last year.", t: "句子有明確的過去時間點 last year (去年)，應使用過去簡單式，而非現在完成式。" },
+  { wrong: "She is more taller than her sister.", correct: "She is taller than her sister.", t: "taller 已經是比較級，不需在前面加 more，重複比較級是錯誤的。" },
+  { wrong: "I didn't saw anything.", correct: "I didn't see anything.", t: "助動詞 didn't 後面必須接原形動詞 see，而非過去式 saw。" },
+  { wrong: "He is interesting in history.", correct: "He is interested in history.", t: "表示人「感到有興趣」應使用 interested；interesting 用於形容事物本身「令人有趣」。" },
+  { wrong: "She married with a doctor.", correct: "She married a doctor.", t: "marry 是及物動詞，後面直接接受格，不需要加上介系詞 with。" },
+  { wrong: "I have a good news for you.", correct: "I have good news for you.", t: "news (新聞、消息) 是不可數名詞，前面不可以加冠詞 a。" },
+  { wrong: "The teacher suggested to study harder.", correct: "The teacher suggested studying harder.", t: "suggest (建議) 後面接動詞時，應接動名詞 (V-ing) 或以 should 開頭的子句。" },
+  { wrong: "He works very hardly every day.", correct: "He works very hard every day.", t: "hard 可以作為副詞修飾工作 (努力工作)；hardly 是副詞「幾乎不」的意思。" },
+  { wrong: "I prefer tea than coffee.", correct: "I prefer tea to coffee.", t: "prefer A to B 表示「比起 B 更喜歡 A」，固定搭配介系詞 to，而非 than。" },
+  // --- New entries (16–60) ---
+  { wrong: "She can sings very well.", correct: "She can sing very well.", t: "情態動詞 can 後面必須接原形動詞，不可加第三人稱單數的 s。" },
+  { wrong: "I am agree with you.", correct: "I agree with you.", t: "agree 是一般動詞，不需要加 be 動詞。「我同意」直接說 I agree。" },
+  { wrong: "He has less friends than his brother.", correct: "He has fewer friends than his brother.", t: "friends 是可數名詞複數，應使用 fewer 而非 less。less 用於不可數名詞。" },
+  { wrong: "The weather is more hotter today.", correct: "The weather is hotter today.", t: "hotter 本身已是比較級形式，不需再加 more。" },
+  { wrong: "I went to home after school.", correct: "I went home after school.", t: "home 用作副詞表示方向時，前面不需要介系詞 to。" },
+  { wrong: "She is afraid from dogs.", correct: "She is afraid of dogs.", t: "afraid 的固定搭配介系詞是 of，而非 from。be afraid of 表示「害怕……」。" },
+  { wrong: "They was playing soccer when it started to rain.", correct: "They were playing soccer when it started to rain.", t: "主詞 They 是複數，過去進行式的 Be 動詞應使用 were，而非 was。" },
+  { wrong: "He gave me an useful advice.", correct: "He gave me useful advice.", t: "advice (建議) 是不可數名詞，前面不加冠詞 a/an，也不加 s。" },
+  { wrong: "I must to finish this report today.", correct: "I must finish this report today.", t: "情態動詞 must 後面直接接原形動詞，不需要加 to。" },
+  { wrong: "She asked me where did I live.", correct: "She asked me where I lived.", t: "間接問句不使用疑問句語序，應改為主詞 + 動詞的陳述語序。" },
+  { wrong: "He is one of the best student in the class.", correct: "He is one of the best students in the class.", t: "one of 後面必須接複數名詞，因此應為 students。" },
+  { wrong: "I have been to Japan in last summer.", correct: "I went to Japan last summer.", t: "有明確過去時間 last summer，應使用過去簡單式。且 last summer 前面不加介系詞 in。" },
+  { wrong: "The news are shocking.", correct: "The news is shocking.", t: "news 雖然字尾有 s，但它是不可數名詞，動詞應使用單數 is。" },
+  { wrong: "Each of the students have their own computer.", correct: "Each of the students has their own computer.", t: "each of 後面雖接複數名詞，但主詞仍為 each（單數），動詞應使用 has。" },
+  { wrong: "I am looking forward to see you again.", correct: "I am looking forward to seeing you again.", t: "look forward to 中的 to 是介系詞，後面應接動名詞 seeing。" },
+  { wrong: "She doesn't know nothing about it.", correct: "She doesn't know anything about it.", t: "英文中不允許雙重否定。doesn't 已經是否定，後面應使用 anything 而非 nothing。" },
+  { wrong: "The children needs more time to play.", correct: "The children need more time to play.", t: "children 是複數名詞，動詞不需要加第三人稱單數的 s，應為 need。" },
+  { wrong: "I want that you come to the party.", correct: "I want you to come to the party.", t: "want 後面接人再接不定詞：want + 人 + to V，而非 want + that 子句。" },
+  { wrong: "He stopped to smoke three years ago.", correct: "He stopped smoking three years ago.", t: "stop + V-ing 表示「停止做某事」；stop + to V 表示「停下來去做另一件事」。此處指「戒菸」，應用 smoking。" },
+  { wrong: "This is the more expensive car in the showroom.", correct: "This is the most expensive car in the showroom.", t: "三者以上的比較應使用最高級 most expensive，而非比較級 more expensive。" },
+  { wrong: "I have lived here since five years.", correct: "I have lived here for five years.", t: "since 後面接時間點；for 後面接時間段。five years 是時間段，應使用 for。" },
+  { wrong: "He enjoys to play basketball after school.", correct: "He enjoys playing basketball after school.", t: "enjoy 後面必須接動名詞 (V-ing)，不可接不定詞 (to V)。" },
+  { wrong: "If I will have time, I will help you.", correct: "If I have time, I will help you.", t: "在條件句 (if 子句) 中，即使表示未來，也應使用現在簡單式，不用 will。" },
+  { wrong: "She is the woman which lives next door.", correct: "She is the woman who lives next door.", t: "先行詞是「人」(the woman) 時，關係代名詞應使用 who，而非 which。" },
+  { wrong: "I am used to live in a small town.", correct: "I am used to living in a small town.", t: "be used to 表示「習慣於……」，其中 to 是介系詞，後接動名詞 (V-ing)。" },
+  { wrong: "He suggested me to apply for the job.", correct: "He suggested that I apply for the job.", t: "suggest 不接「人 + to V」的結構，應使用 suggest + that 子句（that 可省略），子句中用原形動詞。" },
+  { wrong: "The furnitures in this room are very old.", correct: "The furniture in this room is very old.", t: "furniture (家具) 是不可數名詞，沒有複數形式，動詞使用單數 is。" },
+  { wrong: "Despite of the rain, we went outside.", correct: "Despite the rain, we went outside.", t: "despite 是介系詞，直接接名詞，不需要加 of。如果要用 of，應改為 in spite of。" },
+  { wrong: "She doesn't can swim.", correct: "She can't swim.", t: "情態動詞 can 的否定形式為 can't 或 cannot，不使用 doesn't + can。" },
+  { wrong: "I have seen that movie yesterday.", correct: "I saw that movie yesterday.", t: "yesterday 是明確的過去時間，應使用過去簡單式 saw，而非現在完成式 have seen。" },
+  { wrong: "He is enough old to drive a car.", correct: "He is old enough to drive a car.", t: "enough 修飾形容詞時要放在形容詞後面：adjective + enough，而非 enough + adjective。" },
+  { wrong: "I need an informations about the course.", correct: "I need information about the course.", t: "information 是不可數名詞，不可加 s 也不可加冠詞 a/an。" },
+  { wrong: "She told to me that she was busy.", correct: "She told me that she was busy.", t: "tell 是雙賓動詞，直接接人作受詞，不需要介系詞 to。tell + 人 + that...。" },
+  { wrong: "We discussed about the problem for hours.", correct: "We discussed the problem for hours.", t: "discuss 是及物動詞，後面直接接受詞，不需要介系詞 about。" },
+  { wrong: "Neither of the answer is correct.", correct: "Neither of the answers is correct.", t: "neither of 後面應接複數名詞 answers，但動詞用單數 is（因為 neither 表示「兩者都不」，指單個）。" },
+  { wrong: "The police has arrested the suspect.", correct: "The police have arrested the suspect.", t: "police (警察) 在英文中永遠視為複數名詞，動詞應使用 have。" },
+  { wrong: "I am boring with this lecture.", correct: "I am bored with this lecture.", t: "表示人「感到無聊」用 bored；boring 是形容事物「令人無聊的」。" },
+  { wrong: "She said me that she would come.", correct: "She told me that she would come.", t: "say 後面不直接接人作受詞。要表達「她告訴我」應使用 told me。say 後面接 to me 或直接接內容。" },
+  { wrong: "He is used to get up early.", correct: "He is used to getting up early.", t: "be used to 表示「習慣於……」，to 是介系詞，後面接動名詞 (V-ing)。" },
+  { wrong: "I have much homework to do tonight.", correct: "I have a lot of homework to do tonight.", t: "在肯定句中，通常使用 a lot of 而非 much。much 較常用於否定句和疑問句中。" },
+  { wrong: "It depends of the weather.", correct: "It depends on the weather.", t: "depend 的固定搭配介系詞是 on，而非 of。depend on 表示「取決於」。" },
+  { wrong: "We arrived to the hotel at midnight.", correct: "We arrived at the hotel at midnight.", t: "arrive 後面接介系詞 at（小地點）或 in（大地點），不用 to。" },
+  { wrong: "She is enough smart to solve the problem.", correct: "She is smart enough to solve the problem.", t: "enough 修飾形容詞時放在形容詞後面：smart enough，而非 enough smart。" },
+  { wrong: "I usually go to school by the bus.", correct: "I usually go to school by bus.", t: "表示交通方式 by + 交通工具時，中間不加冠詞 the。" },
+  { wrong: "He made me to clean the room.", correct: "He made me clean the room.", t: "使役動詞 make 後面接受詞 + 原形動詞，不需要 to。" }
+];
