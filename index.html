@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>多益英文學習與練習平台 - 登峰英語挑戰</title>
-  <meta name="description" content="專為多益考生設計的英文學習與練習平台，提供單字、片語、文法、句型、對話口說五大練習，結合間隔重複複習與遊戲化機制。">
+  <title>登峰美日英語及護理挑戰平台</title>
+  <meta name="description" content="專為英語與護理考生設計的學習與練習平台，提供單字、語法、閱讀、情境對話與職場口說，結合間隔重複複習與遊戲化機制。">
   <!-- FontAwesome 圖標庫 -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- 核心樣式 -->
@@ -16,7 +16,7 @@
   <aside class="sidebar">
     <div class="logo-container">
       <div class="logo-icon">T</div>
-      <span class="logo-text">登峰多益</span>
+      <span class="logo-text">登峰英語</span>
     </div>
     
     <nav class="nav-links">
@@ -46,7 +46,7 @@
       <div class="avatar" id="sidebar-avatar">挑戰</div>
       <div class="profile-info">
         <span class="profile-name" id="sidebar-username">學習挑戰者</span>
-        <span class="profile-level" id="sidebar-level">Lv. 1 • 多益小白</span>
+        <span class="profile-level" id="sidebar-level">Lv. 1 • 英語新手</span>
       </div>
       <button class="user-switch-trigger-btn" onclick="openUserModal()" title="切換/管理帳號">
         <i class="fas fa-users-cog"></i>
@@ -69,8 +69,10 @@
         
         <!-- 考試目標切換器 -->
         <div class="exam-switcher-container">
-          <button class="exam-switch-btn active" id="exam-switch-toeic" onclick="switchExamGoal('toeic')">🟢 TOEIC 多益</button>
+          <button class="exam-switch-btn active" id="exam-switch-dict" onclick="switchExamGoal('dict')">📚 智能分級單字 (API)</button>
           <button class="exam-switch-btn" id="exam-switch-rn" onclick="switchExamGoal('rn')">🩺 NCLEX-RN 護理師</button>
+          <button class="exam-switch-btn" id="exam-switch-api" onclick="switchExamGoal('api')">🌐 線上國際題庫 (API)</button>
+          <button class="exam-switch-btn" id="exam-switch-gemini" onclick="switchExamGoal('gemini')">✨ Gemini AI 智能出題</button>
         </div>
       </div>
 
@@ -90,7 +92,7 @@
         <!-- 經驗值與等級 -->
         <div class="exp-card">
           <div class="exp-text">
-            <span class="level-badge" id="header-level-text">Lv. 1 (多益小白)</span>
+            <span class="level-badge" id="header-level-text">Lv. 1 (英語新手)</span>
             <span id="header-exp-val">0 / 100 EXP</span>
           </div>
           <div class="exp-bar-bg">
@@ -141,31 +143,6 @@
 
       <!-- 儀表板主要區域 (選級與任務) -->
       <div class="dashboard-main">
-        <!-- 多益分級選擇 -->
-        <div class="section-card">
-          <h3 class="section-title"><i class="fas fa-graduation-cap"></i> 選擇多益目標等級 (級別將影響題目難度)</h3>
-          <div class="level-selector-grid">
-            
-            <div class="level-card green selected" data-level="green">
-              <span class="level-tag">TOEIC 350-465</span>
-              <span class="level-name">🟢 綠色證書級</span>
-              <span class="level-desc">奠定多益基礎，掌握最常見的日常商業對話與字彙。</span>
-            </div>
-
-            <div class="level-card blue" data-level="blue">
-              <span class="level-tag">TOEIC 470-725</span>
-              <span class="level-name">🔵 藍色證書級</span>
-              <span class="level-desc">挑戰中階商務，熟悉辦公室簡報、協商與進階文法結構。</span>
-            </div>
-
-            <div class="level-card gold" data-level="gold">
-              <span class="level-tag">TOEIC 730-990</span>
-              <span class="level-name">🥇 金色證書級</span>
-              <span class="level-desc">衝刺高分殿堂，掌握高難度商務詞彙與複雜邏輯句型。</span>
-            </div>
-
-          </div>
-        </div>
 
         <!-- 每日任務 -->
         <div class="section-card">
@@ -189,34 +166,34 @@
 
       <!-- 五大練習卡片 -->
       <div class="practice-menu-grid">
-        <div class="practice-menu-card" data-category="vocabulary">
-          <div class="practice-menu-icon"><i class="fas fa-spell-check"></i></div>
-          <span class="practice-menu-name">多益單字</span>
-          <p class="practice-menu-desc">精選高頻多益核心單字，建立堅實詞彙基礎。</p>
+        <div class="practice-menu-card" data-category="level1">
+          <div class="practice-menu-icon"><i class="fas fa-leaf"></i></div>
+          <span class="practice-menu-name">Level 1 (基礎單字 - A1)</span>
+          <p class="practice-menu-desc">精選生活與社交基礎詞彙，透過英英釋義建立直覺語感。</p>
         </div>
 
-        <div class="practice-menu-card" data-category="phrases">
-          <div class="practice-menu-icon"><i class="fas fa-tags"></i></div>
-          <span class="practice-menu-name">商務片語</span>
-          <p class="practice-menu-desc">商務對話與閱讀必備片語，加深職場用語習慣。</p>
+        <div class="practice-menu-card" data-category="level2">
+          <div class="practice-menu-icon"><i class="fas fa-seedling"></i></div>
+          <span class="practice-menu-name">Level 2 (初級單字 - A2)</span>
+          <p class="practice-menu-desc">進階日常與基礎描述詞彙，學習如何精確傳達想法。</p>
         </div>
 
-        <div class="practice-menu-card" data-category="grammar">
-          <div class="practice-menu-icon"><i class="fas fa-tasks"></i></div>
-          <span class="practice-menu-name">文法結構</span>
-          <p class="practice-menu-desc">精準切中多益文法考點，不再對文法概念感到困惑。</p>
+        <div class="practice-menu-card" data-category="level3">
+          <div class="practice-menu-icon"><i class="fas fa-tree"></i></div>
+          <span class="practice-menu-name">Level 3 (中級單字 - B1)</span>
+          <p class="practice-menu-desc">涵蓋學術與工作常用基礎詞彙，提升英文聽讀理解力。</p>
         </div>
 
-        <div class="practice-menu-card" data-category="sentences">
-          <div class="practice-menu-icon"><i class="fas fa-align-left"></i></div>
-          <span class="practice-menu-name">句型重組</span>
-          <p class="practice-menu-desc">透過句子重組，掌握正確的多益商務書信句型。</p>
+        <div class="practice-menu-card" data-category="level4">
+          <div class="practice-menu-icon"><i class="fas fa-graduation-cap"></i></div>
+          <span class="practice-menu-name">Level 4 (中高單字 - B2)</span>
+          <p class="practice-menu-desc">商務、時事與思辨核心詞彙，挑戰更流暢的英文表達。</p>
         </div>
 
-        <div class="practice-menu-card" data-category="dialogue">
-          <div class="practice-menu-icon"><i class="fas fa-comments"></i></div>
-          <span class="practice-menu-name">對話口說</span>
-          <p class="practice-menu-desc">語音辨識互動口說，大聲唸出實用商業對話！</p>
+        <div class="practice-menu-card" data-category="level5">
+          <div class="practice-menu-icon"><i class="fas fa-crown"></i></div>
+          <span class="practice-menu-name">Level 5 (高級單字 - C1)</span>
+          <p class="practice-menu-desc">高難度、文學及專業論述詞彙，適合追求英文完美的挑戰者。</p>
         </div>
       </div>
 
@@ -394,6 +371,14 @@
         <button class="store-buy-btn" id="set-backup-dir-btn" onclick="handleSetBackupDirectory()" style="margin-top:4px;">
           <i class="fas fa-folder-open"></i> 設定自動備份資料夾
         </button>
+      </div>
+
+      <!-- Gemini API 設定 -->
+      <div style="margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+        <span style="font-size: 14px; font-weight: 600; display: block; margin-bottom: 6px;"><i class="fas fa-magic" style="color:#a78bfa;"></i> Gemini AI 智能出題金鑰</span>
+        <input type="password" class="add-user-input" id="gemini-api-key-input" placeholder="請貼上您的 Gemini API Key..." style="width: 100%; box-sizing: border-box;">
+        <button class="next-btn" style="margin-top:8px; width:100%;" onclick="saveGeminiApiKey(document.getElementById('gemini-api-key-input').value)"><i class="fas fa-save"></i> 儲存 API 金鑰</button>
+        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">本金鑰將僅儲存在您的瀏覽器本地，用以生成專屬的分級學習題庫。</p>
       </div>
     </div>
   </div>

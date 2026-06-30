@@ -2,7 +2,7 @@
 
 // 初始使用者狀態
 const INITIAL_STATE = {
-  examGoal: "toeic", // 'toeic' | 'rn'
+  examGoal: "dict", // 'dict' | 'rn' | 'api'
   streak: 0,
   lastActiveDate: "", // YYYY-MM-DD
   exp: 0,
@@ -105,45 +105,49 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
 // 頁面加載初始化
 document.addEventListener("DOMContentLoaded", () => {
-  loadState();
-  setupNavigation();
-  initDashboard();
-  applyEquippedTheme();
-  trackActiveTime();
-  checkDayChange();
-  initDirectoryHandle();
-  
-  // 開始按鈕綁定
-  document.querySelectorAll(".level-card").forEach(card => {
-    card.addEventListener("click", () => {
-      selectTOEICLevel(card.dataset.level);
+  try {
+    loadState();
+    setupNavigation();
+    initDashboard();
+    applyEquippedTheme();
+    trackActiveTime();
+    checkDayChange();
+    initDirectoryHandle();
+    
+    // 練習選單按鈕綁定
+    document.querySelectorAll(".practice-menu-card").forEach(card => {
+      card.addEventListener("click", () => {
+        const category = card.dataset.category;
+        startPractice(category);
+      });
     });
-  });
 
-  // 練習選單按鈕綁定
-  document.querySelectorAll(".practice-menu-card").forEach(card => {
-    card.addEventListener("click", () => {
-      const category = card.dataset.category;
-      startPractice(category);
+    // 商店購買綁定
+    document.querySelectorAll(".store-buy-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const theme = btn.dataset.theme;
+        const cost = parseInt(btn.dataset.cost);
+        purchaseTheme(theme, cost, btn);
+      });
     });
-  });
 
-  // 商店購買綁定
-  document.querySelectorAll(".store-buy-btn").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      const theme = btn.dataset.theme;
-      const cost = parseInt(btn.dataset.cost);
-      purchaseTheme(theme, cost, btn);
-    });
-  });
+    // 複習全部按鈕綁定
+    const startAllReviewsBtn = document.getElementById("start-all-reviews");
+    if (startAllReviewsBtn) {
+      startAllReviewsBtn.addEventListener("click", () => {
+        startReviewSession();
+      });
+    }
 
-  // 複習全部按鈕綁定
-  document.getElementById("start-all-reviews").addEventListener("click", () => {
-    startReviewSession();
-  });
-
-  // 還原檔案監聽器
-  document.getElementById("restore-file-input").addEventListener("change", handleRestoreFileSelected);
+    // 還原檔案監聽器
+    const restoreInput = document.getElementById("restore-file-input");
+    if (restoreInput) {
+      restoreInput.addEventListener("change", handleRestoreFileSelected);
+    }
+  } catch (err) {
+    console.error("Initialization error:", err);
+    alert("網頁載入出錯：\n" + err.name + ": " + err.message + "\n\n詳細追蹤堆疊：\n" + err.stack);
+  }
 });
 
 // --- State 狀態管理與存取 ---
@@ -182,6 +186,11 @@ function loadState() {
     }
   } else {
     state = { ...INITIAL_STATE };
+  }
+
+  // 防禦性遷移：如果檢測到舊有的多益目標，自動轉移至新版預設的智能單字庫
+  if (!["dict", "rn", "api", "gemini"].includes(state.examGoal)) {
+    state.examGoal = "dict";
   }
 
   updateExamGoalUI();
@@ -244,11 +253,11 @@ function updateUIElements() {
 }
 
 function getLevelTitle(lvl) {
-  if (lvl < 3) return "多益小白";
-  if (lvl < 6) return "綠色證書";
-  if (lvl < 10) return "藍色證書";
-  if (lvl < 15) return "金色先鋒";
-  return "多益大神";
+  if (lvl < 3) return "英語新手";
+  if (lvl < 6) return "英語進階";
+  if (lvl < 10) return "流利溝通";
+  if (lvl < 15) return "英語先鋒";
+  return "英語大神";
 }
 
 // --- 側邊欄導航 (Navigation) ---
@@ -344,7 +353,7 @@ function checkWeeklyReset() {
 function generateDailyQuests(dateStr) {
   state.questDate = dateStr;
   state.dailyQuests = [
-    { id: "q_vocab", text: "練習 5 個多益單字", type: "vocab", target: 5, current: 0, rewardCoins: 15, rewardExp: 30, completed: false },
+    { id: "q_vocab", text: "練習 5 個英文單字", type: "vocab", target: 5, current: 0, rewardCoins: 15, rewardExp: 30, completed: false },
     { id: "q_time", text: "今日練習達 3 分鐘", type: "time", target: 3, current: 0, rewardCoins: 20, rewardExp: 40, completed: false },
     { id: "q_speaking", text: "完成 1 次口說對話", type: "speaking", target: 1, current: 0, rewardCoins: 25, rewardExp: 50, completed: false }
   ];
@@ -441,9 +450,6 @@ function showFloatingNotification(text) {
 
 // --- 儀表板頁面初始化 (Dashboard Page) ---
 function initDashboard() {
-  // 選級狀態視覺更新
-  selectTOEICLevel(state.currentTOEICLevel, false);
-  
   // 更新統計數字
   const rate = state.stats.totalQuestions > 0 
     ? Math.round((state.stats.correctQuestions / state.stats.totalQuestions) * 100) 
@@ -463,19 +469,6 @@ function initDashboard() {
   document.getElementById("stat-today-minutes").innerText = `${todayMinutes} 分`;
 
   updateDashboardQuests();
-}
-
-function selectTOEICLevel(level, shouldSave = true) {
-  state.currentTOEICLevel = level;
-  if (shouldSave) {
-    saveState();
-  }
-
-  // 移除所有 card 選取狀態
-  document.querySelectorAll(".level-card").forEach(c => c.classList.remove("selected"));
-  // 加上對應選取
-  const selectedCard = document.querySelector(`.level-card.${level}`);
-  if (selectedCard) selectedCard.classList.add("selected");
 }
 
 function updateDashboardQuests() {
@@ -502,6 +495,13 @@ function updateDashboardQuests() {
   `).join("");
 }
 
+// 輔助函數：解析 HTML 實體編碼 (如 &quot; -> ")
+function decodeHtml(html) {
+  const txt = document.createElement("textarea");
+  txt.innerHTML = html;
+  return txt.value;
+}
+
 // --- 練習模組主控 (Practice Engine) ---
 function startPractice(category) {
   // 切換到練習模式視窗
@@ -517,10 +517,324 @@ function startPractice(category) {
   const practiceActiveArea = document.getElementById("practice-active-area");
   practiceActiveArea.style.display = "block";
   
+  if (state.examGoal === "gemini") {
+    const apiKey = localStorage.getItem("gemini_api_key_" + currentUser);
+    if (!apiKey) {
+      alert("請先點選右上角『帳號管理』並貼上您的 Gemini API Key！");
+      exitPractice();
+      return;
+    }
+
+    // 顯示載入動畫
+    practiceActiveArea.innerHTML = `
+      <div style="text-align:center; padding:50px; color:var(--text-secondary);">
+        <i class="fas fa-spinner fa-spin" style="font-size:40px; margin-bottom:20px; color:#a78bfa;"></i>
+        <h3>正在透過 Google Gemini AI 生成專屬學習題庫...</h3>
+        <p style="margin-top:10px; font-size:14px;">這需要呼叫大語言模型，預估耗時 3-5 秒，請稍候片刻。</p>
+      </div>
+    `;
+
+    // 依據 category 設定 prompt
+    let categoryName = "單字詞彙";
+    if (category === "grammar") categoryName = "語法結構";
+    else if (category === "reading") categoryName = "閱讀理解";
+    else if (category === "dialogue") categoryName = "情境對話";
+    else if (category === "speaking") categoryName = "職場口說";
+
+    const prompt = `你是一個專業的英文老師。請幫我出 5 題英語 ${categoryName} 練習題。
+難度設定為：中級 (Intermediate, 約相當於多益 500-750 分)。
+${category === 'speaking' ? `
+每一題代表一組對話互動。請嚴格輸出符合以下 JSON 格式的陣列（不要包含任何 markdown 標籤如 \`\`\`json 或額外說明文字，只回傳乾淨的 JSON）：
+[
+  {
+    "id": "gemini_speaking_1",
+    "title": "情境名稱",
+    "roleA": "A 的英文句子",
+    "translationA": "A 句子的中文翻譯",
+    "roleB": "B 的英文句子，難度適中，字數約 10-20 字",
+    "translationB": "B 句子的中文翻譯",
+    "explanation": "對話用詞點評與中文解析"
+  }
+]
+` : `
+每一題皆為單選題，具備 4 個選項。請嚴格輸出符合以下 JSON 格式的陣列（不要包含任何 markdown 標籤如 \`\`\`json 或額外說明文字，只回傳乾淨的 JSON）：
+[
+  {
+    "id": "gemini_${category}_1",
+    "question": "英文題目內容 (若是單字/語法題，請有挖空如 ____ )",
+    "options": ["選項1", "選項2", "選項3", "選項4"],
+    "answer": 0,
+    "explanation": "中文詳盡解析與翻譯"
+  }
+]
+`}`;
+
+    const cleanApiKey = apiKey.trim();
+
+    // 定義多個備用端點與模型組合
+    const endpoints = [
+      { version: "v1", model: "gemini-1.5-flash" },
+      { version: "v1beta", model: "gemini-1.5-flash" },
+      { version: "v1beta", model: "gemini-2.0-flash" }
+    ];
+
+    const tryFetch = (index) => {
+      if (index >= endpoints.length) {
+        throw new Error("404: 嘗試了所有模型端點皆返回 404。請確認您的 API 金鑰是否有權限存取 Gemini API。");
+      }
+      const ep = endpoints[index];
+      const url = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent?key=${cleanApiKey}`;
+      
+      return fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }).then(res => {
+        if (res.status === 404) {
+          console.warn(`端點 ${ep.version}/${ep.model} 返回 404，嘗試下一個備用端點...`);
+          return tryFetch(index + 1);
+        }
+        return res;
+      });
+    };
+
+    tryFetch(0)
+    .then(res => {
+      if (!res.ok) {
+        return res.text().then(body => {
+          let errMsg = `HTTP ${res.status}`;
+          try {
+            const errData = JSON.parse(body);
+            errMsg = errData?.error?.message || errMsg;
+          } catch(e) {}
+          if (res.status === 429) throw new Error("RATE_LIMIT_429");
+          throw new Error(`${res.status}: ${errMsg}`);
+        });
+      }
+      return res.json();
+    })
+    .then(data => {
+      try {
+        let text = data.candidates[0].content.parts[0].text;
+        // 清理 Gemini 可能包裹的 markdown 程式碼區塊
+        text = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+        const questions = JSON.parse(text);
+        
+        // 給予題目唯一的 id
+        const formattedQuestions = questions.map((q, idx) => {
+          q.id = `api_gemini_${category}_${idx}_${Date.now()}`;
+          return q;
+        });
+
+        // 如果是 speaking，我們需要將其分類改為 dialogue 才能正常觸發口說 UI 渲染
+        sessionState = {
+          category: category === "speaking" ? "dialogue" : category,
+          questions: formattedQuestions,
+          currentIndex: 0,
+          score: 0,
+          wrongAnswers: [],
+          startTime: Date.now(),
+          isReviewSession: false
+        };
+
+        renderQuestion();
+      } catch (e) {
+        console.error("解析 JSON 錯誤:", e, data);
+        alert("AI 生成的題目格式解析錯誤，請重試一遍。\n詳細：" + e.message);
+        exitPractice();
+      }
+    })
+    .catch(err => {
+      console.error("Gemini 請求錯誤:", err);
+      if (err.message === "RATE_LIMIT_429") {
+        alert("❗ Gemini 免費配額已用盡！\n\n您的帳號為免費方案，每日最多對 Gemini 1.5 Flash 發送 1500 次請求。\n\n解決方式：\n① 等待隔天（藿天配額自動重置）\n② 唤難模式改用「智能分級單字 (API)」簡単練習\n③ 前往 Google AI Studio 開通付費方案取得更高配額限額");
+      } else {
+        alert("無法串接 Gemini AI！\n錯誤原因：" + err.message + "\n\n請確認：\n① API Key 是否正確且已點「儲存 API 金鑰」\n② 您的 Google AI Studio 帳號是否有啟用 Gemini API");
+      }
+      exitPractice();
+    });
+
+    return;
+  }
+
+  if (state.examGoal === "dict") {
+    // 顯示載入動畫
+    practiceActiveArea.innerHTML = `
+      <div style="text-align:center; padding:50px; color:var(--text-secondary);">
+        <i class="fas fa-spinner fa-spin" style="font-size:40px; margin-bottom:20px; color:var(--accent-green);"></i>
+        <h3>正在透過 Dictionary API 查詢生字庫與釋義...</h3>
+        <p style="margin-top:10px; font-size:14px;">正在建立英英解釋與發音，請稍候片刻。</p>
+      </div>
+    `;
+
+    // 取得當前難度的隨機 5 個單字
+    const wordsPool = DICT_WORDLIST[category] || DICT_WORDLIST.level1;
+    const shuffledWords = [...wordsPool].sort(() => 0.5 - Math.random());
+    const selectedWords = shuffledWords.slice(0, 5);
+
+    // 非同步獲取 5 個字的意思
+    const fetchPromises = selectedWords.map(word => {
+      return fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`)
+        .then(res => {
+          if (!res.ok) throw new Error("Word not found");
+          return res.json();
+        })
+        .then(data => {
+          const entry = data[0];
+          const phonetic = entry.phonetic || (entry.phonetics && entry.phonetics[0] ? entry.phonetics[0].text : "") || "";
+          
+          // 找出定義
+          let definition = "No definition found.";
+          let partOfSpeech = "n.";
+          if (entry.meanings && entry.meanings[0]) {
+            partOfSpeech = entry.meanings[0].partOfSpeech || "n.";
+            if (entry.meanings[0].definitions && entry.meanings[0].definitions[0]) {
+              definition = entry.meanings[0].definitions[0].definition;
+            }
+          }
+          
+          return {
+            word: word,
+            phonetic: phonetic,
+            partOfSpeech: partOfSpeech,
+            definition: definition
+          };
+        })
+        .catch(err => {
+          // 備用數據以防 API 失敗或某字沒查到
+          return {
+            word: word,
+            phonetic: "",
+            partOfSpeech: "n.",
+            definition: `The concept or action related to the word '${word}'.`
+          };
+        });
+    });
+
+    Promise.all(fetchPromises)
+      .then(wordDetails => {
+        // 現在我們有了 5 個單字的詳細內容，我們來構建 5 道選擇題！
+        const dictQuestions = wordDetails.map((item, index) => {
+          const correctDef = item.definition;
+
+          // 從其餘的單字中隨機抽取 3 個定義作為干擾選項
+          const distractors = wordDetails
+            .filter((_, idx) => idx !== index)
+            .map(w => w.definition);
+          
+          // 隨機打亂干擾項並取 3 個
+          const selectedDistractors = distractors.sort(() => 0.5 - Math.random()).slice(0, 3);
+          
+          // 組合並打亂選項
+          const options = [...selectedDistractors];
+          const insertIdx = Math.floor(Math.random() * 4);
+          options.splice(insertIdx, 0, correctDef);
+
+          return {
+            id: `api_dict_${category}_${index}_${Date.now()}`,
+            word: item.word,
+            phonetic: item.phonetic,
+            partOfSpeech: item.partOfSpeech,
+            question: `Which of the following is the correct definition of the word "<strong>${item.word}</strong>"?`,
+            options: options,
+            answer: insertIdx,
+            explanation: `<strong>${item.word}</strong> [${item.partOfSpeech}] ${item.phonetic}<br>定義：${correctDef}`
+          };
+        });
+
+        sessionState = {
+          category: category,
+          questions: dictQuestions,
+          currentIndex: 0,
+          score: 0,
+          wrongAnswers: [],
+          startTime: Date.now(),
+          isReviewSession: false
+        };
+
+        renderQuestion();
+      })
+      .catch(err => {
+        console.error("單字載入失敗:", err);
+        alert("加載單字資料庫失敗，請檢查網路連線。");
+        exitPractice();
+      });
+    return;
+  }
+
+  if (state.examGoal === "api") {
+    // 顯示載入動畫
+    practiceActiveArea.innerHTML = `
+      <div style="text-align:center; padding:50px; color:var(--text-secondary);">
+        <i class="fas fa-spinner fa-spin" style="font-size:40px; margin-bottom:20px; color:var(--primary);"></i>
+        <h3>正在從雲端 API 載入國際題庫...</h3>
+        <p style="margin-top:10px; font-size:14px;">這需要連接網路，請稍候片刻。</p>
+      </div>
+    `;
+
+    // 對照 OpenTDB Category IDs
+    const apiCategories = {
+      gk: 9,
+      science: 17,
+      history: 23,
+      geography: 22,
+      animals: 27
+    };
+    const catId = apiCategories[category] || 9;
+    
+    fetch(`https://opentdb.com/api.php?amount=5&category=${catId}&type=multiple`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.response_code !== 0 || !data.results || data.results.length === 0) {
+          alert("載入線上題庫失敗，請稍後再試。");
+          exitPractice();
+          return;
+        }
+
+        // 解析並重組為我們系統的格式
+        const apiQuestions = data.results.map((item, index) => {
+          const decodedQuestion = decodeHtml(item.question);
+          const decodedCorrect = decodeHtml(item.correct_answer);
+          const decodedIncorrects = item.incorrect_answers.map(ans => decodeHtml(ans));
+          
+          // 隨機插入正確答案到選項中
+          const options = [...decodedIncorrects];
+          const insertIdx = Math.floor(Math.random() * 4);
+          options.splice(insertIdx, 0, decodedCorrect);
+
+          return {
+            id: `api_${category}_${index}_${Date.now()}`,
+            question: decodedQuestion,
+            options: options,
+            answer: insertIdx,
+            explanation: `來源：Open Trivia Database (${item.category} / 難度：${item.difficulty})。`
+          };
+        });
+
+        sessionState = {
+          category: category,
+          questions: apiQuestions,
+          currentIndex: 0,
+          score: 0,
+          wrongAnswers: [],
+          startTime: Date.now(),
+          isReviewSession: false
+        };
+
+        renderQuestion();
+      })
+      .catch(err => {
+        console.error("API 載入失敗:", err);
+        alert("無法連線至線上題庫，請檢查您的網路連線。");
+        exitPractice();
+      });
+    return;
+  }
+
   // 取得題目庫
-  const rawQuestions = state.examGoal === "rn"
-    ? RN_DATA[category]
-    : TOEIC_DATA[state.currentTOEICLevel][category];
+  const rawQuestions = RN_DATA[category];
     
   if (!rawQuestions || rawQuestions.length === 0) {
     alert("此領域目前無此類題目。");
@@ -552,7 +866,49 @@ function renderQuestion() {
   
   let contentHtml = "";
 
-  if (state.examGoal === "rn" && sessionState.category !== "dialogue") {
+  if (q.id.startsWith("api_")) {
+    // 線上 API 題庫渲染
+    const catNames = { 
+      gk: "綜合英語常識", 
+      science: "科學與自然", 
+      history: "歷史與文化", 
+      geography: "地理與世界", 
+      animals: "動物與生態",
+      level1: "智能單字 Level 1",
+      level2: "智能單字 Level 2",
+      level3: "智能單字 Level 3",
+      level4: "智能單字 Level 4",
+      level5: "智能單字 Level 5",
+      vocab: "AI 智能單字",
+      grammar: "AI 智能文法",
+      reading: "AI 閱讀理解",
+      dialogue: "AI 情境對話"
+    };
+    contentHtml = `
+      <div class="quiz-container">
+        <div class="quiz-progress-bar-container">
+          <div class="quiz-progress-bar-fill" style="width: ${progressPercent}%"></div>
+        </div>
+        <div class="quiz-header-info">
+          <span>🌐 線上雲端題庫 • ${catNames[sessionState.category]}</span>
+          <span>第 ${sessionState.currentIndex + 1} / ${sessionState.questions.length} 題</span>
+        </div>
+        <div class="quiz-prompt" style="font-size: 17px; margin: 20px 0; background: rgba(255,255,255,0.01); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); line-height: 1.6;">
+          ${q.question}
+        </div>
+        <div class="quiz-options-list">
+          ${q.options.map((opt, i) => `
+            <button class="quiz-option-btn" onclick="checkMultipleChoiceAnswer(${i}, ${q.answer})">${opt}</button>
+          `).join("")}
+        </div>
+        <div id="explanation-box"></div>
+        <div class="quiz-footer">
+          <button class="exit-btn" onclick="exitPractice()">退出練習</button>
+          <button class="next-btn" id="next-btn" style="display:none" onclick="goToNextQuestion()">下一題</button>
+        </div>
+      </div>
+    `;
+  } else if (q.id.startsWith("rn_") && sessionState.category !== "dialogue") {
     // 護理師專業英文命題 (Multiple Choice)
     const catNames = { pharmacology: "藥理學 (Pharmacology)", medSurg: "內外科護理 (Med-Surg)", pediatric: "兒科護理 (Pediatric)", maternity: "產科婦幼 (Maternity)" };
     contentHtml = `
@@ -586,7 +942,7 @@ function renderQuestion() {
           <div class="quiz-progress-bar-fill" style="width: ${progressPercent}%"></div>
         </div>
         <div class="quiz-header-info">
-          <span>單字練習 • ${TOEIC_DATA[state.currentTOEICLevel].title}</span>
+          <span>單字練習 • ${typeof TOEIC_DATA !== 'undefined' && TOEIC_DATA[state.currentTOEICLevel] ? TOEIC_DATA[state.currentTOEICLevel].title : '英語學習'}</span>
           <span>第 ${sessionState.currentIndex + 1} / ${sessionState.questions.length} 題</span>
         </div>
         <div class="word-to-learn">${q.word}</div>
@@ -612,7 +968,7 @@ function renderQuestion() {
           <div class="quiz-progress-bar-fill" style="width: ${progressPercent}%"></div>
         </div>
         <div class="quiz-header-info">
-          <span>${modeTitle} • ${TOEIC_DATA[state.currentTOEICLevel].title}</span>
+          <span>${modeTitle} • ${typeof TOEIC_DATA !== 'undefined' && TOEIC_DATA[state.currentTOEICLevel] ? TOEIC_DATA[state.currentTOEICLevel].title : '英語學習'}</span>
           <span>第 ${sessionState.currentIndex + 1} / ${sessionState.questions.length} 題</span>
         </div>
         <div class="quiz-prompt" style="font-size: 22px; margin: 20px 0; background: rgba(255,255,255,0.01); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color)">
@@ -639,7 +995,7 @@ function renderQuestion() {
           <div class="quiz-progress-bar-fill" style="width: ${progressPercent}%"></div>
         </div>
         <div class="quiz-header-info">
-          <span>句型重組 • ${TOEIC_DATA[state.currentTOEICLevel].title}</span>
+          <span>句型重組 • ${typeof TOEIC_DATA !== 'undefined' && TOEIC_DATA[state.currentTOEICLevel] ? TOEIC_DATA[state.currentTOEICLevel].title : '英語學習'}</span>
           <span>第 ${sessionState.currentIndex + 1} / ${sessionState.questions.length} 題</span>
         </div>
         <div class="quiz-prompt">請依照中文意思重組英文句子：</div>
@@ -675,7 +1031,7 @@ function renderQuestion() {
           <div class="quiz-progress-bar-fill" style="width: ${progressPercent}%"></div>
         </div>
         <div class="quiz-header-info">
-          <span>口說對話 • ${TOEIC_DATA[state.currentTOEICLevel].title}</span>
+          <span>口說對話 • ${typeof TOEIC_DATA !== 'undefined' && TOEIC_DATA[state.currentTOEICLevel] ? TOEIC_DATA[state.currentTOEICLevel].title : '英語學習'}</span>
           <span>第 ${sessionState.currentIndex + 1} / ${sessionState.questions.length} 題</span>
         </div>
         <div class="quiz-prompt" style="text-align:center;">聽聽 A 的語音，並朗讀 B 的對答：</div>
@@ -1095,7 +1451,7 @@ function showSessionSummary() {
   }
 
   // 任務進度更新
-  if (sessionState.category === "vocabulary") {
+  if (sessionState.category === "vocabulary" || sessionState.category.startsWith("level")) {
     updateQuestProgress("vocab", sessionState.questions.length);
   }
   updateQuestProgress("time", minutesSpent);
@@ -1291,10 +1647,21 @@ function startNextReviewQuestion() {
   const q = sessionState.questions[sessionState.currentIndex];
   // 從 ID 前綴與資料比對找出此題的 category
   let matchedCategory = "vocabulary";
-  if (q.id.includes("_p")) matchedCategory = "phrases";
-  else if (q.id.includes("_g")) matchedCategory = "grammar";
-  else if (q.id.includes("_s")) matchedCategory = "sentences";
-  else if (q.id.includes("_d")) matchedCategory = "dialogue";
+  if (q.id.startsWith("api_")) {
+    const parts = q.id.split("_");
+    matchedCategory = parts[1]; // gk, science, history, geography, animals
+  } else if (q.id.startsWith("rn_")) {
+    if (q.id.includes("_ph")) matchedCategory = "pharmacology";
+    else if (q.id.includes("_ms")) matchedCategory = "medSurg";
+    else if (q.id.includes("_pe")) matchedCategory = "pediatric";
+    else if (q.id.includes("_ma")) matchedCategory = "maternity";
+    else if (q.id.includes("_di")) matchedCategory = "dialogue";
+  } else {
+    if (q.id.includes("_p")) matchedCategory = "phrases";
+    else if (q.id.includes("_g")) matchedCategory = "grammar";
+    else if (q.id.includes("_s")) matchedCategory = "sentences";
+    else if (q.id.includes("_d")) matchedCategory = "dialogue";
+  }
 
   sessionState.category = matchedCategory;
   renderQuestion();
@@ -1325,8 +1692,19 @@ function updateAnalysisSection() {
   }
 
   // 2. 五大模組答對率進度條
-  const categories = ["vocabulary", "phrases", "grammar", "sentences", "dialogue"];
-  const catNames = { vocabulary: "單字練習", phrases: "片語填空", grammar: "文法結構", sentences: "句型重組", dialogue: "對話口說" };
+  let categories = ["level1", "level2", "level3", "level4", "level5"];
+  let catNames = { level1: "Level 1", level2: "Level 2", level3: "Level 3", level4: "Level 4", level5: "Level 5" };
+
+  if (state.examGoal === "rn") {
+    categories = ["pharmacology", "medSurg", "pediatric", "maternity", "dialogue"];
+    catNames = { pharmacology: "藥理學", medSurg: "內外科護理", pediatric: "兒科護理", maternity: "產科婦幼", dialogue: "臨床口說" };
+  } else if (state.examGoal === "api") {
+    categories = ["gk", "science", "history", "geography", "animals"];
+    catNames = { gk: "綜合常識", science: "科學自然", history: "歷史文化", geography: "地理世界", animals: "動物生態" };
+  } else if (state.examGoal === "gemini") {
+    categories = ["vocab", "grammar", "reading", "dialogue", "speaking"];
+    catNames = { vocab: "AI 單字", grammar: "AI 文法", reading: "AI 閱讀", dialogue: "AI 對話", speaking: "AI 口說" };
+  }
 
   const skillContainer = document.getElementById("skill-analysis-container");
   if (skillContainer) {
@@ -1665,19 +2043,32 @@ function switchExamGoal(goal) {
 }
 
 function updateExamGoalUI() {
-  const toeicBtn = document.getElementById("exam-switch-toeic");
+  const dictBtn = document.getElementById("exam-switch-dict");
   const rnBtn = document.getElementById("exam-switch-rn");
-  if (toeicBtn && rnBtn) {
+  const apiBtn = document.getElementById("exam-switch-api");
+  const geminiBtn = document.getElementById("exam-switch-gemini");
+  if (dictBtn && rnBtn && apiBtn && geminiBtn) {
+    dictBtn.classList.remove("active");
+    rnBtn.classList.remove("active");
+    apiBtn.classList.remove("active");
+    geminiBtn.classList.remove("active");
+
     if (state.examGoal === "rn") {
-      toeicBtn.classList.remove("active");
       rnBtn.classList.add("active");
       document.getElementById("welcome-title").innerText = `Hi, 護理挑戰者!`;
       document.getElementById("welcome-sub-desc").innerText = "點選下方護理師學科，隨時進行英文命題的實戰練習！";
+    } else if (state.examGoal === "api") {
+      apiBtn.classList.add("active");
+      document.getElementById("welcome-title").innerText = `Hi, 國際挑戰者!`;
+      document.getElementById("welcome-sub-desc").innerText = "這項題庫透過雲端公開 API 聯網生成，提供無限的跨學科常識與英語閱讀測驗！";
+    } else if (state.examGoal === "gemini") {
+      geminiBtn.classList.add("active");
+      document.getElementById("welcome-title").innerText = `Hi, AI 探索者!`;
+      document.getElementById("welcome-sub-desc").innerText = "整合 Google Gemini AI 智能出題，依據您的能力等級與練習弱點，即時量身打造高水準英文題目！";
     } else {
-      rnBtn.classList.remove("active");
-      toeicBtn.classList.add("active");
-      document.getElementById("welcome-title").innerText = `Hi, 英語學習者!`;
-      document.getElementById("welcome-sub-desc").innerText = "今天也是挑戰自我的一天，準備好進行多益衝刺了嗎？";
+      dictBtn.classList.add("active");
+      document.getElementById("welcome-title").innerText = `Hi, 單字挑戰者!`;
+      document.getElementById("welcome-sub-desc").innerText = "串接免費 Free Dictionary API，帶您由淺入深，透過上下文精準掌握分級英語單字！";
     }
   }
 
@@ -1686,8 +2077,16 @@ function updateExamGoalUI() {
   if (headerCard) {
     const levelSelectCard = headerCard.parentNode;
     if (levelSelectCard) {
+      let rnIntro = document.getElementById("rn-intro-block");
+      let apiIntro = document.getElementById("api-intro-block");
+      let dictIntro = document.getElementById("dict-intro-block");
+      let geminiIntro = document.getElementById("gemini-intro-block");
+      if (rnIntro) rnIntro.style.display = "none";
+      if (apiIntro) apiIntro.style.display = "none";
+      if (dictIntro) dictIntro.style.display = "none";
+      if (geminiIntro) geminiIntro.style.display = "none";
+
       if (state.examGoal === "rn") {
-        let rnIntro = document.getElementById("rn-intro-block");
         if (!rnIntro) {
           rnIntro = document.createElement("div");
           rnIntro.id = "rn-intro-block";
@@ -1705,12 +2104,60 @@ function updateExamGoalUI() {
           `;
           levelSelectCard.appendChild(rnIntro);
         }
-        document.querySelector(".level-selector-grid").style.display = "none";
         rnIntro.style.display = "block";
+      } else if (state.examGoal === "api") {
+        if (!apiIntro) {
+          apiIntro = document.createElement("div");
+          apiIntro.id = "api-intro-block";
+          apiIntro.innerHTML = `
+            <div style="background: rgba(139,92,246,0.05); border: 1px dashed #8b5cf6; padding:20px; border-radius:12px; margin-top:10px;">
+              <h4 style="color:#8b5cf6; font-size:16px; margin-bottom:8px;"><i class="fas fa-globe"></i> 線上雲端國際題庫 (OpenTDB API)</h4>
+              <p style="font-size:13px; line-height:1.6; color:var(--text-secondary);">
+                串接國際公開 Trivia 題庫 API，每次點選練習都會隨機向雲端請求最前沿的 5 道全英文單選題！<br>
+                • 涵蓋：科學自然、歷史文化、世界地理、動物生態以及生活綜合常識。<br>
+                * 這需要保持網路暢通。點擊下方練習領域即可體驗無限題目的聯網挑戰！
+              </p>
+            </div>
+          `;
+          levelSelectCard.appendChild(apiIntro);
+        }
+        apiIntro.style.display = "block";
+      } else if (state.examGoal === "gemini") {
+        if (!geminiIntro) {
+          geminiIntro = document.createElement("div");
+          geminiIntro.id = "gemini-intro-block";
+          geminiIntro.innerHTML = `
+            <div style="background: rgba(167,139,250,0.05); border: 1px dashed #a78bfa; padding:20px; border-radius:12px; margin-top:10px;">
+              <h4 style="color:#a78bfa; font-size:16px; margin-bottom:8px;"><i class="fas fa-magic"></i> Google Gemini AI 聯網出題系統</h4>
+              <p style="font-size:13px; line-height:1.6; color:var(--text-secondary);">
+                利用最新的生成式 AI 技術，每次點擊練習都會即時調用 Gemini 模型，動態產出中級難度的定制題目與詳盡的中文引申解析！<br>
+                • <strong>支援範疇</strong>：AI 單字、AI 文法、AI 閱讀理解、AI 情境對話與 AI 職場口說。<br>
+                * 請先點擊右上角「帳號管理」設定您的 Gemini API Key，即可體驗無限客製化的極致學習！
+              </p>
+            </div>
+          `;
+          levelSelectCard.appendChild(geminiIntro);
+        }
+        geminiIntro.style.display = "block";
       } else {
-        const rnIntro = document.getElementById("rn-intro-block");
-        if (rnIntro) rnIntro.style.display = "none";
-        document.querySelector(".level-selector-grid").style.display = "grid";
+        if (!dictIntro) {
+          dictIntro = document.createElement("div");
+          dictIntro.id = "dict-intro-block";
+          dictIntro.innerHTML = `
+            <div style="background: rgba(16,185,129,0.05); border: 1px dashed var(--accent-green); padding:20px; border-radius:12px; margin-top:10px;">
+              <h4 style="color:var(--accent-green); font-size:16px; margin-bottom:8px;"><i class="fas fa-book"></i> Free Dictionary API 智能分級單字測驗</h4>
+              <p style="font-size:13px; line-height:1.6; color:var(--text-secondary);">
+                整合開源英語字典 API，每次點選練習都會即時查詢生字的發音、詞性與英英解釋，並自動生成英英釋義選擇題！<br>
+                • <strong>Level 1 - 2</strong>：基礎生活及日常詞彙 (A1 - A2)<br>
+                • <strong>Level 3 - 4</strong>：職場、學術及實用中階詞彙 (B1 - B2)<br>
+                • <strong>Level 5</strong>：高難度文學及思辨高級詞彙 (C1 - C2)<br>
+                * 請保持網路暢通，點擊下方練習等級，即刻開啟直覺式英英學習！
+              </p>
+            </div>
+          `;
+          levelSelectCard.appendChild(dictIntro);
+        }
+        dictIntro.style.display = "block";
       }
     }
   }
@@ -1728,13 +2175,25 @@ function renderPracticeMenu() {
     updateMenuCard(cards[1], "medSurg", "fas fa-stethoscope", "內外科護理 (Med-Surg)", "涵蓋甲狀腺切除、心臟衰竭、糖尿病酮酸中毒等系統性臨床護理考點。");
     updateMenuCard(cards[2], "pediatric", "fas fa-baby", "兒科護理 (Pediatric)", "急性會厭炎、乳糜瀉飲食管理等兒童成長與急症護理測驗。");
     updateMenuCard(cards[3], "maternity", "fas fa-heartbeat", "產科婦幼 (Maternity)", "前置胎盤、胎盤早剝、催產素點點滴監測等婦產科高頻考題。");
-    updateMenuCard(cards[4], "dialogue", "fas fa-user-nurse", "臨床護理口說 (Speaking)", "練習護理人員與患者及家屬溝通的日常職場英語口說。");
+    updateMenuCard(cards[4], "dialogue", "fas fa-user-nurse", "臨床護理口說 (Speaking)", "練習護理人員與患者及家容溝通的日常職場英語口說。");
+  } else if (state.examGoal === "api") {
+    updateMenuCard(cards[0], "gk", "fas fa-globe", "綜合英語常識", "挑戰包含生活科普、常識等多元主題的雲端隨機英語閱讀測驗。");
+    updateMenuCard(cards[1], "science", "fas fa-atom", "科學與自然", "向雲端伺服器載入最新的科學、物理、化學與自然生態英文題目。");
+    updateMenuCard(cards[2], "history", "fas fa-landmark", "歷史與文化", "測驗有關世界歷史、文化事件與重要里程碑的英語題目。");
+    updateMenuCard(cards[3], "geography", "fas fa-map-marked-alt", "地理與世界", "探索全球地理、各國首都與地標常識的即時英文考題。");
+    updateMenuCard(cards[4], "animals", "fas fa-paw", "動物與生態", "測驗大自然奇妙動物、昆蟲與生態系等趣味英語科學常識。");
+  } else if (state.examGoal === "gemini") {
+    updateMenuCard(cards[0], "vocab", "fas fa-spell-check", "AI 單字測驗", "由 Gemini 即時生成專屬的英英釋義與單字搭配選擇題。");
+    updateMenuCard(cards[1], "grammar", "fas fa-tasks", "AI 語法結構", "由 AI 生成克漏字或文法填空，附帶超詳細的中英文解析。");
+    updateMenuCard(cards[2], "reading", "fas fa-book-open", "AI 閱讀理解", "生成一篇短小的英文商務或日常對話故事，並附帶理解問題測驗。");
+    updateMenuCard(cards[3], "dialogue", "fas fa-comments", "AI 情境對話", "AI 精選實用商業或生活場景對話，提供互動式克漏字閱讀。");
+    updateMenuCard(cards[4], "speaking", "fas fa-microphone", "AI 職場口說", "利用語音辨識大聲唸出 AI 為您生成的職場溝通例句，賺取金幣！");
   } else {
-    updateMenuCard(cards[0], "vocabulary", "fas fa-spell-check", "多益單字", "精選高頻多益核心單字，建立堅實詞彙基礎。");
-    updateMenuCard(cards[1], "phrases", "fas fa-tags", "商務片語", "商務對話與閱讀必備片語，加深職場用語習慣。");
-    updateMenuCard(cards[2], "grammar", "fas fa-tasks", "文法結構", "精準切中多益文法考點，不再對文法概念感到困惑。");
-    updateMenuCard(cards[3], "sentences", "fas fa-align-left", "句型重組", "透過句子重組，掌握正確的多益商務書信句型。");
-    updateMenuCard(cards[4], "dialogue", "fas fa-comments", "對話口說", "語音辨識互動口說，大聲唸出實用商業對話！");
+    updateMenuCard(cards[0], "level1", "fas fa-leaf", "Level 1 (基礎單字 - A1)", "精選生活與社交基礎詞彙，透過英英釋義建立直覺語感。");
+    updateMenuCard(cards[1], "level2", "fas fa-seedling", "Level 2 (初級單字 - A2)", "進階日常與基礎描述詞彙，學習如何精確傳達想法。");
+    updateMenuCard(cards[2], "level3", "fas fa-tree", "Level 3 (中級單字 - B1)", "涵蓋學術與工作常用基礎詞彙，提升英文聽讀理解力。");
+    updateMenuCard(cards[3], "level4", "fas fa-graduation-cap", "Level 4 (中高單字 - B2)", "商務、時事與思辨核心詞彙，挑戰更流暢的英文表達。");
+    updateMenuCard(cards[4], "level5", "fas fa-crown", "Level 5 (高級單字 - C1)", "高難度、文學及專業論述詞彙，適合追求英文完美的挑戰者。");
   }
 }
 
@@ -1786,6 +2245,16 @@ function renderUserModal() {
   }).join("");
 
   updateBackupStatusUI();
+
+  const keyInput = document.getElementById("gemini-api-key-input");
+  if (keyInput) {
+    keyInput.value = localStorage.getItem("gemini_api_key_" + currentUser) || "";
+  }
+}
+
+function saveGeminiApiKey(key) {
+  localStorage.setItem("gemini_api_key_" + currentUser, key.trim());
+  showFloatingNotification("Gemini API 金鑰已安全地儲存在本機！");
 }
 
 function handleSwitchUser(name) {
@@ -1816,6 +2285,7 @@ function handleSwitchUser(name) {
   applyEquippedTheme();
   initDashboard();
   renderUserModal();
+  closeUserModal();
   showFloatingNotification(`已切換使用者至：${currentUser}`);
 }
 
@@ -1917,6 +2387,7 @@ function handleRestoreFileSelected(e) {
         }
         
         renderUserModal();
+        closeUserModal();
         showFloatingNotification(`還原成功！已回復 ${restoreTargetName} 的備份進度。`);
       }
     } catch(err) {
