@@ -670,20 +670,20 @@ function startPractice(category) {
 
     let typeSpecificPrompt = "";
     if (category === "ai_vocab_trans") {
-      typeSpecificPrompt = `每一題題目 (question) 「必須只能是單一個英文單字」（例如: "ball"、"collaborate"），選項 (options) 必須為 4 個不同的「繁體中文翻譯」選項（且其中只有一個是該英文單字的正確對譯），例如：["球", "香蕉", "箱子", "蘋果"]。答案索引 (answer) 為正確選項之 0-based 索引。`;
+      typeSpecificPrompt = `每一題題目 (question) 「必須只能是單一個英文單字」（例如: "ball"、"collaborate"），選項 (options) 必須為 4 個不同的「繁體中文翻譯」選項（且其中只有一個是該英文單字的正確對譯），例如：["球", "香蕉", "箱子", "蘋果"]。答案索引 (answer) 為正確選項之 0-based 索引。此題型解析 (explanation) 請「嚴格限制在 30 字以內」，僅說明單字詞性與意思，並附帶一句極簡英文例句與中文翻譯。`;
     } else if (category === "ai_vocab_cloze") {
-      typeSpecificPrompt = `每一題為克漏字填空。請在題目 (question) 中給出一個英文句子並將其中的核心「單字」或「片語」部分挖空（以底線 ____ 標示）。選項 (options) 必須為 4 個英文單字或片語（且只有一個填入句子中語意與搭配詞是正確的）。`;
+      typeSpecificPrompt = `每一題為克漏字填空。請在題目 (question) 中給出一個英文句子並將其中的核心「單字」或「片語」部分挖空（以底線 ____ 標示）。選項 (options) 必須為 4 個英文單字或片語（且只有一個填入句子中語意與搭配詞是正確的）。解析 (explanation) 限 40 字以內，直截了當指出正確搭配词的中文含意即可，請勿重複題目。`;
     } else if (category === "ai_grammar_cloze") {
-      typeSpecificPrompt = `每一題為文法填充題。請在題目 (question) 中給出一句英文句子並挖空（以底線 ____ 標示）。選項 (options) 必須為 4 個英文文法選項（主要針對時態、詞性、介係詞、連接詞的變化，且只有一個是文法正確的）。`;
+      typeSpecificPrompt = `每一題為文法填充題。請在題目 (question) 中給出一句英文句子並挖空（以底線 ____ 標示）。選項 (options) 必須為 4 個英文文法選項（主要針對時態、詞性、介係詞、連接詞的變化，且只有一個是文法正確的）。解析 (explanation) 限 40 字以內，僅需解釋該語法核心規則與語境，請勿囉嗦。`;
     } else if (category === "ai_dialogue_choice") {
-      typeSpecificPrompt = `每一題為情境對話選擇題。題目 (question) 為一句情境中的英文提問或對話（例如 "Q: How are you?" 或是 "A: We need to finalize the contract by tomorrow, what do you think?"）。選項 (options) 必須提供 4 個英文回應選項，且其中只有一個是語氣適當、最得體的回覆語句。`;
+      typeSpecificPrompt = `每一題為情境對話選擇題。題目 (question) 為一句情境中的英文提問或對話（例如 "Q: How are you?" 或是 "A: We need to finalize the contract by tomorrow, what do you think?"）。選項 (options) 必須提供 4 個英文回應選項，且其中只有一個是語氣適當、最得體的回覆語句。解析 (explanation) 限 40 字以內，僅說明為何該回應最得體及其中文意思。`;
     } else if (category === "ai_reading_passages") {
-      typeSpecificPrompt = `每一題為閱讀理解。題目 (question) 請先給出一小段英文故事、商務信件、或電子郵件（約 50-80 字），接著附帶詢問一個與該文章內容相符的英文理解問題。選項 (options) 為 4 個英文或繁體中文選項。`;
+      typeSpecificPrompt = `每一題為閱讀理解。題目 (question) 請先給出一小段英文故事、商務信件、或電子郵件（約 50-80 字），接著附帶詢問一個與該文章內容相符的英文理解問題。選項 (options) 為 4 個英文或繁體中文選項。解析 (explanation) 限 40 字以內，僅需翻譯原文中支持正確答案的關鍵句子，絕對不要進行全文大意翻譯。`;
     } else if (category === "ai_listening_comprehend") {
       // 聽力題： question 存放短文，由 TTS 唸出。
-      typeSpecificPrompt = `每一題為聽力理解。題目 (question) 請給出一個適合播放、英文朗讀的簡短英文小故事（長度約 40-70 字）。請注意：該題在網頁上只會發音，因此請確保問題和對話內容能透過耳朵聽懂。選項 (options) 請提供 4 個選項，選項與題目可以包含英文與中文。`;
+      typeSpecificPrompt = `每一題為聽力理解。題目 (question) 請給出一個適合播放、英文朗讀的簡短英文小故事（長度約 40-70 字）。請注意：該題在網頁上只會發音，因此請確保問題和對話內容能透過耳朵聽懂。選項 (options) 請提供 4 個選項，選項與題目可以包含英文與中文。解析 (explanation) 限 40 字以內，說明聽力材料中支持解答的關鍵字句即可。`;
     } else if (category === "ai_speaking_pronounce") {
-      typeSpecificPrompt = `每一題為口說發音訓練。這題型不需要 4 個單選選項，請嚴格按照以下針對口說的 JSON 格式輸出：
+      typeSpecificPrompt = `每一題為口說發音訓練。這題型不需要 4 個單選選項，請嚴格按照以下針對口說的 JSON 格式輸出，且說明與發音重點解析 (explanation) 欄位「必須控制在 45 字以內」，僅說明單字發音、連音與流暢度點評：
 [
   {
     "id": "gemini_speaking_1",
@@ -692,7 +692,7 @@ function startPractice(category) {
     "translationA": "引導情境的中文翻譯",
     "roleB": "要求使用者唸出、大聲說出來的英文句子，長度約 8-15 字",
     "translationB": "該句子的中文翻譯",
-    "explanation": "口說重點、連音與發音點評解析"
+    "explanation": "發音重點、連音與發音點評解析"
   }
 ]`;
     }
@@ -702,14 +702,14 @@ function startPractice(category) {
 
 ${category === 'ai_speaking_pronounce' ? typeSpecificPrompt : `
 ${typeSpecificPrompt}
-請嚴格輸出符合以下 JSON 格式的陣列（不要包含任何 markdown 標籤如 \`\`\`json 或額外說明文字，只回傳乾淨的 JSON）：
+請嚴格輸出符合以下 JSON 格式的陣列（不要包含任何 markdown 標籤如 \`\`\`json 或額外說明文字，只回傳乾淨的 JSON）。每個解析 (explanation) 欄位「必須非常精簡且絕對不能超過 40 個字」：
 [
   {
     "id": "gemini_${category}_1",
     "question": "英文題目內容",
     "options": ["選項1", "選項2", "選項3", "選項4"],
     "answer": 0,
-    "explanation": "中文詳盡解析、引申用法與翻譯"
+    "explanation": "極簡中文解析與答案翻譯（限 40 字內）"
   }
 ]
 `}`;
