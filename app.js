@@ -24,7 +24,14 @@ const INITIAL_STATE = {
   reviewBox: [], // { id, level, type, questionData, boxNum: 1, nextReviewDate: YYYY-MM-DD }
   dailyQuests: [], // { id, text, type, target, current, rewardCoins, rewardExp, completed }
   questDate: "", // 任務生成日期 YYYY-MM-DD
-  aiUsage: { date: "", count: 0 }
+  aiUsage: { date: "", count: 0 },
+  aiBlacklist: {
+    vocab: [],       // 存放最近答對的單字 (上限 100)
+    grammar: [],     // 存放最近答對的文法考點 (上限 10)
+    reading: [],     // 存放最近答對的閱讀主題 (上限 10)
+    dialogue: [],    // 存放最近答對的對話情境 (上限 10)
+    speaking: []     // 存放最近答對的口說主題 (上限 10)
+  }
 };
 
 let state = { ...INITIAL_STATE };
@@ -184,6 +191,16 @@ function loadState() {
       // 確保防禦性 aiUsage 初始化
       if (!state.aiUsage) {
         state.aiUsage = { date: "", count: 0 };
+      }
+      // 確保防禦性 aiBlacklist 初始化
+      if (!state.aiBlacklist) {
+        state.aiBlacklist = {
+          vocab: [],
+          grammar: [],
+          reading: [],
+          dialogue: [],
+          speaking: []
+        };
       }
     } catch (e) {
       console.error("狀態解析失敗，使用初始狀態", e);
@@ -589,37 +606,103 @@ function startPractice(category) {
       </div>
     `;
 
-    // 依據 category 設定 prompt
-    let categoryName = "單字詞彙";
-    if (category === "grammar") categoryName = "語法結構";
-    else if (category === "reading") categoryName = "閱讀理解";
-    else if (category === "dialogue") categoryName = "情境對話";
-    else if (category === "speaking") categoryName = "職場口說";
+    // 讀取客製化關鍵字並清除首尾空白
+    const kwInput = document.getElementById("gemini-custom-keyword");
+    const userKeyword = kwInput ? kwInput.value.trim() : "";
 
-    const prompt = `你是一個專業的英文老師。請幫我出 5 題英語 ${categoryName} 練習題。
-難度設定為：中級 (Intermediate, 約相當於多益 500-750 分)。
-${category === 'speaking' ? `
-每一題代表一組對話互動。請嚴格輸出符合以下 JSON 格式的陣列（不要包含任何 markdown 標籤如 \`\`\`json 或額外說明文字，只回傳乾淨的 JSON）：
+    // 讀取並轉換多益/托福難易度分階
+    const lvlSelect = document.getElementById("gemini-custom-level");
+    const selectedLvl = lvlSelect ? lvlSelect.value : "toeic_mid";
+    let targetDifficultyStr = "中級 (約多益 550-785 分)";
+    if (selectedLvl === "toeic_basic") targetDifficultyStr = "入門級 (約多益 350-550 分，使用日常基礎單字與簡單對話)";
+    else if (selectedLvl === "toeic_high") targetDifficultyStr = "高階級 (約多益 785-990 分，使用商務合約、正式談判與思辨用詞)";
+    else if (selectedLvl === "toefl_basic") targetDifficultyStr = "學術初級 (約托福 60-80 分，使用大學校園生活、基礎科普與學術字彙)";
+    else if (selectedLvl === "toefl_mid") targetDifficultyStr = "學術進階 (約托福 80-100 分，使用歷史文化、科學論證與學術講座等級用詞)";
+    else if (selectedLvl === "toefl_high") targetDifficultyStr = "學術大師 (約托福 100+ 分，使用專業學術論文、哲學思辨與高難度科學理論詞彙)";
+
+    // 依據 7 種全新 category 設定 prompt
+    let categoryName = "單字對譯";
+    let subCategoryKey = "vocab";
+    if (category === "ai_vocab_cloze") { categoryName = "單字克漏字"; subCategoryKey = "vocab"; }
+    else if (category === "ai_grammar_cloze") { categoryName = "語法克漏字"; subCategoryKey = "grammar"; }
+    else if (category === "ai_dialogue_choice") { categoryName = "情境對話"; subCategoryKey = "dialogue"; }
+    else if (category === "ai_reading_passages") { categoryName = "閱讀理解"; subCategoryKey = "reading"; }
+    else if (category === "ai_listening_comprehend") { categoryName = "聽力理解"; subCategoryKey = "reading"; }
+    else if (category === "ai_speaking_pronounce") { categoryName = "口說訓練"; subCategoryKey = "speaking"; }
+
+    // 根據黑名單規避與關鍵字衝突處理邏輯，組裝出題條件
+    let conditionPrompt = "";
+    if (category === "ai_vocab_trans" || category === "ai_vocab_cloze") {
+      // 單字題型：同時處理「關鍵字引導」與「黑名單排除」
+      if (userKeyword) {
+        conditionPrompt += `\n- 主題限制：請強制圍繞「${userKeyword}」相關的情境與字詞出題。`;
+      }
+      const vocabBlacklist = (state.aiBlacklist && state.aiBlacklist.vocab) ? state.aiBlacklist.vocab : [];
+      if (vocabBlacklist.length > 0) {
+        conditionPrompt += `\n- 避開單字：請「絕對不要」使用以下單字作為正確答案或題目核心 (上限排外清單)：[ ${vocabBlacklist.slice(-100).join(", ")} ]。`;
+      }
+    } else {
+      // 非單字題型：有輸入關鍵字則「以關鍵字為主，停用黑名單」，沒輸入則「套用黑名單避開」
+      if (userKeyword) {
+        conditionPrompt += `\n- 主題限制：請強制以「${userKeyword}」的情境與背景對話作為出題依據。`;
+      } else {
+        const otherBlacklist = (state.aiBlacklist && state.aiBlacklist[subCategoryKey]) ? state.aiBlacklist[subCategoryKey] : [];
+        if (otherBlacklist.length > 0) {
+          conditionPrompt += `\n- 避開考點/情境：請儘量避開以下已經出過的主題或語法點 (排除重複)：[ ${otherBlacklist.slice(-10).join(", ")} ]。`;
+        }
+      }
+    }
+
+    // 根據不同卡片類型定制專屬 Prompt 核心引導與每次的出題數
+    let questionCount = 10; // 預設 10 題
+    if (category === "ai_vocab_trans") {
+      questionCount = 20; // 1. AI 單字對譯：每次出 20 題
+    } else if (category === "ai_reading_passages") {
+      questionCount = 5;  // 5. AI 閱讀理解：每次出 5 題
+    }
+
+    let typeSpecificPrompt = "";
+    if (category === "ai_vocab_trans") {
+      typeSpecificPrompt = `每一題題目 (question) 「必須只能是單一個英文單字」（例如: "ball"、"collaborate"），選項 (options) 必須為 4 個不同的「繁體中文翻譯」選項（且其中只有一個是該英文單字的正確對譯），例如：["球", "香蕉", "箱子", "蘋果"]。答案索引 (answer) 為正確選項之 0-based 索引。`;
+    } else if (category === "ai_vocab_cloze") {
+      typeSpecificPrompt = `每一題為克漏字填空。請在題目 (question) 中給出一個英文句子並將其中的核心「單字」或「片語」部分挖空（以底線 ____ 標示）。選項 (options) 必須為 4 個英文單字或片語（且只有一個填入句子中語意與搭配詞是正確的）。`;
+    } else if (category === "ai_grammar_cloze") {
+      typeSpecificPrompt = `每一題為文法填充題。請在題目 (question) 中給出一句英文句子並挖空（以底線 ____ 標示）。選項 (options) 必須為 4 個英文文法選項（主要針對時態、詞性、介係詞、連接詞的變化，且只有一個是文法正確的）。`;
+    } else if (category === "ai_dialogue_choice") {
+      typeSpecificPrompt = `每一題為情境對話選擇題。題目 (question) 為一句情境中的英文提問或對話（例如 "Q: How are you?" 或是 "A: We need to finalize the contract by tomorrow, what do you think?"）。選項 (options) 必須提供 4 個英文回應選項，且其中只有一個是語氣適當、最得體的回覆語句。`;
+    } else if (category === "ai_reading_passages") {
+      typeSpecificPrompt = `每一題為閱讀理解。題目 (question) 請先給出一小段英文故事、商務信件、或電子郵件（約 50-80 字），接著附帶詢問一個與該文章內容相符的英文理解問題。選項 (options) 為 4 個英文或繁體中文選項。`;
+    } else if (category === "ai_listening_comprehend") {
+      // 聽力題： question 存放短文，由 TTS 唸出。
+      typeSpecificPrompt = `每一題為聽力理解。題目 (question) 請給出一個適合播放、英文朗讀的簡短英文小故事（長度約 40-70 字）。請注意：該題在網頁上只會發音，因此請確保問題和對話內容能透過耳朵聽懂。選項 (options) 請提供 4 個選項，選項與題目可以包含英文與中文。`;
+    } else if (category === "ai_speaking_pronounce") {
+      typeSpecificPrompt = `每一題為口說發音訓練。這題型不需要 4 個單選選項，請嚴格按照以下針對口說的 JSON 格式輸出：
 [
   {
     "id": "gemini_speaking_1",
-    "title": "情境名稱",
-    "roleA": "A 的英文句子",
-    "translationA": "A 句子的中文翻譯",
-    "roleB": "B 的英文句子，難度適中，字數約 10-20 字",
-    "translationB": "B 句子的中文翻譯",
-    "explanation": "對話用詞點評與中文解析"
+    "title": "口說情境名稱",
+    "roleA": "引導對話或情境英文",
+    "translationA": "引導情境的中文翻譯",
+    "roleB": "要求使用者唸出、大聲說出來的英文句子，長度約 8-15 字",
+    "translationB": "該句子的中文翻譯",
+    "explanation": "口說重點、連音與發音點評解析"
   }
-]
-` : `
-每一題皆為單選題，具備 4 個選項。請嚴格輸出符合以下 JSON 格式的陣列（不要包含任何 markdown 標籤如 \`\`\`json 或額外說明文字，只回傳乾淨的 JSON）：
+]`;
+    }
+
+    const prompt = `你是一個專業的英文老師。請幫我出 ${questionCount} 題英語 ${categoryName} 練習題。
+難度設定為：${targetDifficultyStr}。${conditionPrompt}
+
+${category === 'ai_speaking_pronounce' ? typeSpecificPrompt : `
+${typeSpecificPrompt}
+請嚴格輸出符合以下 JSON 格式的陣列（不要包含任何 markdown 標籤如 \`\`\`json 或額外說明文字，只回傳乾淨的 JSON）：
 [
   {
     "id": "gemini_${category}_1",
-    "question": "英文題目內容 (若是單字/語法題，請有挖空如 ____ )",
+    "question": "英文題目內容",
     "options": ["選項1", "選項2", "選項3", "選項4"],
     "answer": 0,
-    "explanation": "中文詳盡解析與翻譯"
+    "explanation": "中文詳盡解析、引申用法與翻譯"
   }
 ]
 `}`;
@@ -977,22 +1060,59 @@ function renderQuestion() {
       level3: "智能單字 Level 3",
       level4: "智能單字 Level 4",
       level5: "智能單字 Level 5",
-      vocab: "AI 智能單字",
-      grammar: "AI 智能文法",
-      reading: "AI 閱讀理解",
-      dialogue: "AI 情境對話"
+      ai_vocab_trans: "AI 單字對譯",
+      ai_vocab_cloze: "AI 單字克漏字",
+      ai_grammar_cloze: "AI 語法克漏字",
+      ai_dialogue_choice: "AI 情境對話",
+      ai_reading_passages: "AI 閱讀理解",
+      ai_listening_comprehend: "AI 聽力理解",
+      ai_speaking_pronounce: "AI 口說發音"
     };
+
+    let ttsButtonHtml = "";
+    let displayQuestionText = q.question;
+
+    // A. 針對單字對譯題型 (ai_vocab_trans)：在題目旁邊放喇叭，且預設直接發音
+    if (sessionState.category === "ai_vocab_trans") {
+      ttsButtonHtml = `
+        <button onclick="speakEnglishText('${q.question}')" style="background: var(--primary); border: none; color: #fff; padding: 6px 14px; border-radius: 8px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; vertical-align: middle;">
+          <i class="fas fa-volume-up"></i> 播放發音
+        </button>
+      `;
+      // 自動朗讀
+      setTimeout(() => {
+        speakEnglishText(q.question);
+      }, 500);
+    }
+
+    // B. 針對聽力理解題型 (ai_listening_comprehend)：隱藏原始故事，只留下「播放故事朗讀」大按鈕
+    if (sessionState.category === "ai_listening_comprehend") {
+      displayQuestionText = `
+        <div style="text-align: center; padding: 15px 0;">
+          <div style="font-size: 40px; color: var(--primary); margin-bottom: 12px;"><i class="fas fa-headphones-alt"></i></div>
+          <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px;">請點選下方按鈕，聆聽語音故事並回答問題：</p>
+          <button onclick="speakEnglishText(\`${q.question.replace(/`/g, '\\`').replace(/"/g, '&quot;')}\`)" class="next-btn" style="margin: 0 auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px;">
+            <i class="fas fa-play-circle"></i> 播放英文聽力短文
+          </button>
+        </div>
+      `;
+      // 自動朗讀
+      setTimeout(() => {
+        speakEnglishText(q.question);
+      }, 600);
+    }
+
     contentHtml = `
       <div class="quiz-container">
         <div class="quiz-progress-bar-container">
           <div class="quiz-progress-bar-fill" style="width: ${progressPercent}%"></div>
         </div>
         <div class="quiz-header-info">
-          <span>🌐 線上雲端題庫 • ${catNames[sessionState.category]}</span>
+          <span>🌐 線上雲端題庫 • ${catNames[sessionState.category] || "AI 練習"}</span>
           <span>第 ${sessionState.currentIndex + 1} / ${sessionState.questions.length} 題</span>
         </div>
         <div class="quiz-prompt" style="font-size: 17px; margin: 20px 0; background: rgba(255,255,255,0.01); padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); line-height: 1.6;">
-          ${q.question}
+          <span style="font-weight: 700; font-size: 20px; color: var(--text-primary); vertical-align: middle;">${displayQuestionText}</span> ${ttsButtonHtml}
         </div>
         <div class="quiz-options-list">
           ${q.options.map((opt, i) => `
@@ -1315,6 +1435,28 @@ function submitSentenceAssembly() {
   document.getElementById("next-btn").style.display = "block";
 }
 
+// 全域發音朗讀函數 (適用於單字對譯、聽力理解、以及任何發音元件)
+function speakEnglishText(text) {
+  if ('speechSynthesis' in window) {
+    // 先停止當前可能正在撥放的語音，防止重疊
+    speechSynthesis.cancel();
+    
+    // 清理括號及底線等非文字朗讀元件
+    const cleanText = text.replace(/____/g, "blank").replace(/\([^)]*\)/g, "").trim();
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'en-US';
+    
+    // 尋找最適美式或英式發音
+    const voices = speechSynthesis.getVoices();
+    const enVoice = voices.find(v => v.lang.startsWith('en-US') || v.lang.startsWith('en-GB') || v.lang.startsWith('en-'));
+    if (enVoice) utterance.voice = enVoice;
+    utterance.rate = 0.9; // 略慢一點點讓發音更清晰
+    speechSynthesis.speak(utterance);
+  } else {
+    console.warn("Speech Synthesis 不支援此瀏覽器。");
+  }
+}
+
 // 3. 口說練習語音播放與辨識
 function playRoleAVoice() {
   const q = sessionState.questions[sessionState.currentIndex];
@@ -1485,6 +1627,59 @@ function exitPractice() {
 // 5. 顯示結算畫面
 function showSessionSummary() {
   const container = document.getElementById("practice-active-area");
+
+  // 處理 Gemini AI 答對題目加入排除黑名單 (排除重複)
+  if (state.examGoal === "gemini") {
+    if (!state.aiBlacklist) {
+      state.aiBlacklist = { vocab: [], grammar: [], reading: [], dialogue: [], speaking: [] };
+    }
+    sessionState.questions.forEach((q, idx) => {
+      // 檢查是否答對該題 (答對代表不在 wrongAnswers 中)
+      const isCorrect = !sessionState.wrongAnswers.some(w => w.id === q.id);
+      if (isCorrect) {
+        // 從題目 ID 或 category 判斷寫入哪個子黑名單
+        const qid = q.id || "";
+        const lowerQid = qid.toLowerCase();
+        if (lowerQid.includes("vocab")) {
+          // 單字題 (包括對譯 ai_vocab_trans 與克漏字 ai_vocab_cloze)
+          let word = "";
+          // 如果對譯題，題幹是英文單字，直接把 q.question 當成單字
+          if (lowerQid.includes("trans")) {
+            word = q.question.replace(/[^a-zA-Z\s-]/g, "").trim().toLowerCase();
+          } else if (q.options && q.options[q.answer]) {
+            word = q.options[q.answer].replace(/[^a-zA-Z\s-]/g, "").trim().toLowerCase();
+          }
+          if (word && !state.aiBlacklist.vocab.includes(word)) {
+            state.aiBlacklist.vocab.push(word);
+            if (state.aiBlacklist.vocab.length > 100) {
+              state.aiBlacklist.vocab.shift();
+            }
+          }
+        } else if (lowerQid.includes("grammar")) {
+          const concept = (q.options && q.options[q.answer]) ? q.options[q.answer].trim().toLowerCase() : "";
+          if (concept && !state.aiBlacklist.grammar.includes(concept)) {
+            state.aiBlacklist.grammar.push(concept);
+            if (state.aiBlacklist.grammar.length > 10) state.aiBlacklist.grammar.shift();
+          }
+        } else if (lowerQid.includes("reading") || lowerQid.includes("listening")) {
+          const snippet = q.question ? q.question.substring(0, 30).trim().toLowerCase() : "";
+          const targetKey = lowerQid.includes("reading") ? "reading" : "speaking"; // 將聽力放置於 speaking 相似排除，或對應到 reading
+          const finalKey = state.aiBlacklist[targetKey] ? targetKey : "reading";
+          if (snippet && !state.aiBlacklist[finalKey].includes(snippet)) {
+            state.aiBlacklist[finalKey].push(snippet);
+            if (state.aiBlacklist[finalKey].length > 10) state.aiBlacklist[finalKey].shift();
+          }
+        } else if (lowerQid.includes("dialogue") || lowerQid.includes("speaking") || lowerQid.includes("pronounce")) {
+          const targetKey = lowerQid.includes("dialogue") ? "dialogue" : "speaking";
+          const scene = q.title ? q.title.trim().toLowerCase() : (q.roleB ? q.roleB.substring(0, 20).trim().toLowerCase() : "");
+          if (scene && !state.aiBlacklist[targetKey].includes(scene)) {
+            state.aiBlacklist[targetKey].push(scene);
+            if (state.aiBlacklist[targetKey].length > 10) state.aiBlacklist[targetKey].shift();
+          }
+        }
+      }
+    });
+  }
   
   // 計算總耗時與週學習時間
   const timeSpentSec = Math.round((Date.now() - sessionState.startTime) / 1000);
@@ -1510,6 +1705,9 @@ function showSessionSummary() {
   state.stats.totalQuestions += sessionState.questions.length;
   state.stats.correctQuestions += sessionState.score;
   state.stats.totalTimeSpent += timeSpentSec;
+  
+  if (!state.stats.categoryCounts) state.stats.categoryCounts = {};
+  if (!state.stats.categoryCorrect) state.stats.categoryCorrect = {};
   
   state.stats.categoryCounts[sessionState.category] = (state.stats.categoryCounts[sessionState.category] || 0) + sessionState.questions.length;
   state.stats.categoryCorrect[sessionState.category] = (state.stats.categoryCorrect[sessionState.category] || 0) + sessionState.score;
@@ -1565,8 +1763,8 @@ function showSessionSummary() {
     });
   }
 
-  // 任務進度更新
-  if (sessionState.category === "vocabulary" || sessionState.category.startsWith("level")) {
+  // 任務進度更新 (納入新 AI 單字對譯與克漏字)
+  if (sessionState.category === "vocabulary" || sessionState.category.startsWith("level") || sessionState.category === "ai_vocab_trans" || sessionState.category === "ai_vocab_cloze") {
     updateQuestProgress("vocab", sessionState.questions.length);
   }
   updateQuestProgress("time", minutesSpent);
@@ -2225,98 +2423,27 @@ function updateExamGoalUI() {
     }
   }
 
-  // 切換 Dashboard Level 選擇卡
-  const headerCard = document.querySelector(".section-card h3");
-  if (headerCard) {
-    const levelSelectCard = headerCard.parentNode;
-    if (levelSelectCard) {
-      let rnIntro = document.getElementById("rn-intro-block");
-      let apiIntro = document.getElementById("api-intro-block");
-      let dictIntro = document.getElementById("dict-intro-block");
-      let geminiIntro = document.getElementById("gemini-intro-block");
-      if (rnIntro) rnIntro.style.display = "none";
-      if (apiIntro) apiIntro.style.display = "none";
-      if (dictIntro) dictIntro.style.display = "none";
-      if (geminiIntro) geminiIntro.style.display = "none";
-
-      if (state.examGoal === "rn") {
-        if (!rnIntro) {
-          rnIntro = document.createElement("div");
-          rnIntro.id = "rn-intro-block";
-          rnIntro.innerHTML = `
-            <div style="background: rgba(59,130,246,0.05); border: 1px dashed var(--accent-blue); padding:20px; border-radius:12px; margin-top:10px;">
-              <h4 style="color:var(--accent-blue); font-size:16px; margin-bottom:8px;"><i class="fas fa-stethoscope"></i> 美國註冊護理師 (NCLEX-RN) 考試大綱</h4>
-              <p style="font-size:13px; line-height:1.6; color:var(--text-secondary);">
-                NCLEX-RN 考試著重於臨床安全與有效護理環境。本題庫涵蓋：<br>
-                • <strong>Pharmacology (藥理學)</strong>：給藥安全、副作用與血值監測。<br>
-                • <strong>Med-Surg (內外科護理)</strong>：各系統疾病臨床徵象與手術前後護理。<br>
-                • <strong>Pediatric (兒科) & Maternity (產科)</strong>：生長發育、先天疾病、產前與產後護理。<br>
-                * 題目均採用英文專業出題，並提供中文病理合理解析！
-              </p>
-            </div>
-          `;
-          levelSelectCard.appendChild(rnIntro);
-        }
-        rnIntro.style.display = "block";
-      } else if (state.examGoal === "api") {
-        if (!apiIntro) {
-          apiIntro = document.createElement("div");
-          apiIntro.id = "api-intro-block";
-          apiIntro.innerHTML = `
-            <div style="background: rgba(139,92,246,0.05); border: 1px dashed #8b5cf6; padding:20px; border-radius:12px; margin-top:10px;">
-              <h4 style="color:#8b5cf6; font-size:16px; margin-bottom:8px;"><i class="fas fa-globe"></i> 線上雲端國際題庫 (OpenTDB API)</h4>
-              <p style="font-size:13px; line-height:1.6; color:var(--text-secondary);">
-                串接國際公開 Trivia 題庫 API，每次點選練習都會隨機向雲端請求最前沿的 5 道全英文單選題！<br>
-                • 涵蓋：科學自然、歷史文化、世界地理、動物生態以及生活綜合常識。<br>
-                * 這需要保持網路暢通。點擊下方練習領域即可體驗無限題目的聯網挑戰！
-              </p>
-            </div>
-          `;
-          levelSelectCard.appendChild(apiIntro);
-        }
-        apiIntro.style.display = "block";
-      } else if (state.examGoal === "gemini") {
-        if (!geminiIntro) {
-          geminiIntro = document.createElement("div");
-          geminiIntro.id = "gemini-intro-block";
-          geminiIntro.innerHTML = `
-            <div style="background: rgba(167,139,250,0.05); border: 1px dashed #a78bfa; padding:20px; border-radius:12px; margin-top:10px;">
-              <h4 style="color:#a78bfa; font-size:16px; margin-bottom:8px;"><i class="fas fa-magic"></i> Google Gemini AI 聯網出題系統</h4>
-              <p style="font-size:13px; line-height:1.6; color:var(--text-secondary);">
-                利用最新的生成式 AI 技術，每次點擊練習都會即時調用 Gemini 模型，動態產出中級難度的定制題目與詳盡的中文引申解析！<br>
-                • <strong>支援範疇</strong>：AI 單字、AI 文法、AI 閱讀理解、AI 情境對話與 AI 職場口說。<br>
-                * 請先點擊右上角「帳號管理」設定您的 Gemini API Key，即可體驗無限客製化的極致學習！
-              </p>
-            </div>
-          `;
-          levelSelectCard.appendChild(geminiIntro);
-        }
-        geminiIntro.style.display = "block";
+    // 切換關鍵字輸入區塊顯示狀態 (僅在 Gemini 模式顯示)
+    const kwBlock = document.getElementById("gemini-keyword-block");
+    if (kwBlock) {
+      if (state.examGoal === "gemini") {
+        kwBlock.style.display = "flex";
       } else {
-        if (!dictIntro) {
-          dictIntro = document.createElement("div");
-          dictIntro.id = "dict-intro-block";
-          dictIntro.innerHTML = `
-            <div style="background: rgba(16,185,129,0.05); border: 1px dashed var(--accent-green); padding:20px; border-radius:12px; margin-top:10px;">
-              <h4 style="color:var(--accent-green); font-size:16px; margin-bottom:8px;"><i class="fas fa-book"></i> Free Dictionary API 智能分級單字測驗</h4>
-              <p style="font-size:13px; line-height:1.6; color:var(--text-secondary);">
-                整合開源英語字典 API，每次點選練習都會即時查詢生字的發音、詞性與英英解釋，並自動生成英英釋義選擇題！<br>
-                • <strong>Level 1 - 2</strong>：基礎生活及日常詞彙 (A1 - A2)<br>
-                • <strong>Level 3 - 4</strong>：職場、學術及實用中階詞彙 (B1 - B2)<br>
-                • <strong>Level 5</strong>：高難度文學及思辨高級詞彙 (C1 - C2)<br>
-                * 請保持網路暢通，點擊下方練習等級，即刻開啟直覺式英英學習！
-              </p>
-            </div>
-          `;
-          levelSelectCard.appendChild(dictIntro);
-        }
-        dictIntro.style.display = "block";
+        kwBlock.style.display = "none";
       }
     }
-  }
 
   // 渲染練習選單
   renderPracticeMenu();
+}
+
+// 清除 Gemini 關鍵字輸入值
+function clearGeminiKeyword() {
+  const kwInput = document.getElementById("gemini-custom-keyword");
+  if (kwInput) {
+    kwInput.value = "";
+  }
+  showFloatingNotification("已清除 AI 客製化出題關鍵字！");
 }
 
 function renderPracticeMenu() {
@@ -2339,12 +2466,24 @@ function renderPracticeMenu() {
     updateMenuCard(cards[4], "animals", "fas fa-paw", "動物與生態", "測驗大自然奇妙動物、昆蟲與生態系等趣味英語科學常識。");
     for (let i = 5; i < cards.length; i++) cards[i].style.display = "none";
   } else if (state.examGoal === "gemini") {
-    updateMenuCard(cards[0], "vocab", "fas fa-spell-check", "AI 單字測驗", "由 Gemini 即時生成專屬的英英釋義與單字搭配選擇題。");
-    updateMenuCard(cards[1], "grammar", "fas fa-tasks", "AI 語法結構", "由 AI 生成克漏字或文法填空，附帶超詳細的中英文解析。");
-    updateMenuCard(cards[2], "reading", "fas fa-book-open", "AI 閱讀理解", "生成一篇短小的英文商務或日常對話故事，並附帶理解問題測驗。");
-    updateMenuCard(cards[3], "dialogue", "fas fa-comments", "AI 情境對話", "AI 精選實用商業或生活場景對話，提供互動式克漏字閱讀。");
-    updateMenuCard(cards[4], "speaking", "fas fa-microphone", "AI 職場口說", "利用語音辨識大聲唸出 AI 為您生成的職場溝通例句，賺取金幣！");
-    for (let i = 5; i < cards.length; i++) cards[i].style.display = "none";
+    // 重新定義的 7 張 AI 學習練習卡片
+    updateMenuCard(cards[0], "ai_vocab_trans", "fas fa-language", "AI 單字對譯", "依據難度生成單字中英對譯選擇題，支援語音發音朗讀單字。");
+    updateMenuCard(cards[1], "ai_vocab_cloze", "fas fa-pen-nib", "AI 單字克漏字", "在挖空句子中選入適當的英單字或常用片語。");
+    updateMenuCard(cards[2], "ai_grammar_cloze", "fas fa-puzzle-piece", "AI 語法克漏字", "挑戰時態、詞性、介係詞與連接詞等關鍵文法填空。");
+    updateMenuCard(cards[3], "ai_dialogue_choice", "fas fa-comments", "AI 情境對話", "模擬真實職場或生活對答情境，選出最得體的回覆語句。");
+    updateMenuCard(cards[4], "ai_reading_passages", "fas fa-book-open", "AI 閱讀理解", "閱讀由 AI 產出的趣味故事、信件或短文並回答主旨問題。");
+    
+    // 如果大於 5 張，渲染聽力與口說
+    if (cards.length > 5) {
+      cards[5].style.display = "flex";
+      updateMenuCard(cards[5], "ai_listening_comprehend", "fas fa-headphones", "AI 聽力理解", "純聆聽 AI 的英文短故事語音朗讀，不看文章進行答題測驗。");
+    }
+    if (cards.length > 6) {
+      cards[6].style.display = "flex";
+      updateMenuCard(cards[6], "ai_speaking_pronounce", "fas fa-microphone-alt", "AI 口說發音", "大聲唸出 AI 為您量身定制的對話實用句型，挑戰完美發音！");
+    }
+    // 隱藏其餘沒用到的卡片
+    for (let i = 7; i < cards.length; i++) cards[i].style.display = "none";
   } else {
     const l1Count = (typeof ECDICT_DATA !== 'undefined' && ECDICT_DATA.level1) ? ECDICT_DATA.level1.length : (DICT_WORDLIST.level1 ? DICT_WORDLIST.level1.length : 0);
     const l2Count = (typeof ECDICT_DATA !== 'undefined' && ECDICT_DATA.level2) ? ECDICT_DATA.level2.length : (DICT_WORDLIST.level2 ? DICT_WORDLIST.level2.length : 0);

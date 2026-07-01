@@ -175,7 +175,6 @@
         <!-- 本週學習時數分佈 -->
         <div class="section-card">
           <h3 class="section-title"><i class="fas fa-calendar-alt"></i> 本週學習時數分佈 (週一至週日)</h3>
-          <p style="font-size: 13px; color:var(--text-secondary); margin-bottom: 12px;">保持每日練習 5 分鐘，建立良好學習習慣！</p>
           <div class="weekly-bar-chart" id="dashboard-bar-chart-container">
             <!-- 由 JS 動態生成週時數柱狀圖 -->
             <div style="text-align:center; color:var(--text-muted); padding:20px;">
@@ -188,11 +187,34 @@
 
     <!-- ================= 2. 學習練習區 ================= -->
     <section id="practice-section" class="content-section">
-      <!-- 考試目標切換器 (改放置在學習練習區頂端) -->
+      <!-- 考試目標切換器 (改放置在學習練習區頂端，將 Gemini 移到中間，護理師排在最右) -->
       <div class="exam-switcher-container" style="margin-bottom: 24px;">
         <button class="exam-switch-btn active" id="exam-switch-dict" onclick="switchExamGoal('dict')">📚 智能分級單字 (本地詞庫)</button>
-        <button class="exam-switch-btn" id="exam-switch-rn" onclick="switchExamGoal('rn')">🩺 NCLEX-RN 護理師</button>
         <button class="exam-switch-btn" id="exam-switch-gemini" onclick="switchExamGoal('gemini')">✨ Gemini AI 智能出題</button>
+        <button class="exam-switch-btn" id="exam-switch-rn" onclick="switchExamGoal('rn')">🩺 NCLEX-RN 護理師</button>
+      </div>
+
+      <!-- AI 關鍵字客製化出題引導輸入列 (預設隱藏，切換為 Gemini 模式時顯示) -->
+      <div id="gemini-keyword-block" style="display: none; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--btn-radius); padding: 16px 20px; margin-bottom: 20px; box-shadow: var(--glass-shadow); flex-direction: column; gap: 12px; width: 100%;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; width: 100%;">
+          <span style="font-size: 13px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+            <i class="fas fa-magic"></i> AI 出題偏好：
+          </span>
+          <input type="text" id="gemini-custom-keyword" placeholder="輸入關鍵字引導 AI (如：商務、醫療、機場對話，留空則隨機)..." style="flex: 1; min-width: 200px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 8px; color: var(--text-primary); font-size: 13px; outline: none;">
+          <button class="next-btn" onclick="clearGeminiKeyword()" style="padding: 8px 14px; font-size: 12px; background: transparent; border: 1px solid var(--border-color); white-space: nowrap;">清除</button>
+        </div>
+        <!-- 新增：多益與托福難易度分階選項 -->
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+          <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap;"><i class="fas fa-signal"></i> 難易度設定：</span>
+          <select id="gemini-custom-level" style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); padding: 6px 12px; font-size: 13px; outline: none; cursor: pointer;">
+            <option value="toeic_basic">多益入門級 (TOEIC 350-550)</option>
+            <option value="toeic_mid" selected>多益中高階 (TOEIC 550-785)</option>
+            <option value="toeic_high">多益高階級 (TOEIC 785-990)</option>
+            <option value="toefl_basic">托福學術初級 (TOEFL 60-80)</option>
+            <option value="toefl_mid">托福學術進階 (TOEFL 80-100)</option>
+            <option value="toefl_high">托福學術大師 (TOEFL 100+)</option>
+          </select>
+        </div>
       </div>
 
       <div class="practice-header">
@@ -200,7 +222,7 @@
         <p style="color: var(--text-secondary); font-size: 14px;">每天練習不同領域，能全方位提升您的英文實力！</p>
       </div>
 
-      <!-- 五大練習卡片 -->
+      <!-- 八大練習卡片槽 (支援最大 8 個卡片呈現) -->
       <div class="practice-menu-grid">
         <div class="practice-menu-card" data-category="level1">
           <div class="practice-menu-icon"><i class="fas fa-leaf"></i></div>
@@ -232,19 +254,21 @@
           <p class="practice-menu-desc">高難度、文學及專業論述詞彙，適合追求英文完美的挑戰者。</p>
         </div>
 
-        <!-- 片語、句型、文法卡片 -->
+        <!-- 卡片 6 -->
         <div class="practice-menu-card" data-category="phrase">
           <div class="practice-menu-icon"><i class="fas fa-quote-left"></i></div>
           <span class="practice-menu-name">常用片語測驗 (Idioms)</span>
           <p class="practice-menu-desc">精選實用英文片語與成語，挑戰雙語意思配對。</p>
         </div>
 
+        <!-- 卡片 7 -->
         <div class="practice-menu-card" data-category="sentence">
           <div class="practice-menu-icon"><i class="fas fa-align-left"></i></div>
           <span class="practice-menu-name">實用句型重組 (Sentences)</span>
           <p class="practice-menu-desc">根據中文意思，將打亂的英文單字重新排列組合成正確句子。</p>
         </div>
 
+        <!-- 卡片 8 -->
         <div class="practice-menu-card" data-category="grammar">
           <div class="practice-menu-icon"><i class="fas fa-exclamation-triangle"></i></div>
           <span class="practice-menu-name">文法挑錯挑戰 (Grammar)</span>
@@ -336,7 +360,6 @@
         <!-- 學習時數圖表 -->
         <div class="section-card">
           <h3 class="section-title"><i class="fas fa-calendar-alt"></i> 本週學習時數分佈 (週一至週日)</h3>
-          <p style="font-size: 13px; color:var(--text-secondary);">保持每日學習 5 分鐘，建立習慣是最有力的學習方法！</p>
           <div class="weekly-bar-chart" id="weekly-bar-chart-container">
             <!-- JS 動態渲染柱狀圖 -->
           </div>
@@ -423,7 +446,7 @@
           <span class="backup-dir-indicator unconfigured" id="backup-status-badge">未設定</span>
         </div>
         <div class="backup-dir-path" id="backup-path-label">尚未設定自動備份資料夾，進度僅儲存在瀏覽器中。</div>
-        <button class="store-buy-btn" id="set-backup-dir-btn" onclick="handleSetBackupDirectory()" style="margin-top:4px;">
+        <button class="next-btn" id="set-backup-dir-btn" onclick="handleSetBackupDirectory()" style="margin-top:4px; width:100%; justify-content:center;">
           <i class="fas fa-folder-open"></i> 設定自動備份資料夾
         </button>
       </div>
