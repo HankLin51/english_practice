@@ -72,6 +72,11 @@
         <div class="exp-bar-bg">
           <div class="exp-bar-fill" id="header-exp-fill"></div>
         </div>
+        <!-- 當日 AI 用量計數 (桌面版) -->
+        <div style="font-size:11px; color:var(--text-secondary); margin-top:8px; display:flex; justify-content:space-between;">
+          <span>今日 AI 額度：</span>
+          <span id="sidebar-ai-usage" style="color:var(--secondary); font-weight:600;">已用 0 / 1500 次</span>
+        </div>
       </div>
     </div>
   </aside>
@@ -79,17 +84,49 @@
   <!-- 右側主要內容區 -->
   <main class="main-wrapper">
     
+    
+    <!-- 手機版專屬頂部資訊列 (當螢幕小於 768px 時會顯示) -->
+    <div class="mobile-profile-container">
+      <div class="mobile-profile-row">
+        <!-- 帳號管理/切換按鈕 -->
+        <button class="mobile-profile-user" onclick="openUserModal()" title="切換/管理帳號">
+          <i class="fas fa-user-circle"></i>
+          <span id="mobile-username-label">預設使用者</span>
+          <i class="fas fa-cog" style="font-size:10px; margin-left:4px; opacity:0.6;"></i>
+        </button>
+        <!-- 連擊與金幣 -->
+        <div class="mobile-profile-stats">
+          <div class="streak-pill" id="mobile-streak-pill">
+            <i class="fas fa-fire" style="color: #ef4444; margin-right:4px;"></i>
+            <span id="mobile-streak-val">0 天</span>
+          </div>
+          <div class="coins-pill">
+            <i class="fas fa-coins" style="color: #fbbf24; margin-right:4px;"></i>
+            <span id="mobile-coins-val">0</span>
+          </div>
+        </div>
+      </div>
+      <!-- 經驗值與等級進度條 -->
+      <div class="mobile-profile-exp">
+        <div class="mobile-profile-exp-text">
+          <span id="mobile-level-text" style="color:var(--primary); font-weight:700;">Lv. 1 (英語新手)</span>
+          <span id="mobile-exp-val" style="color:var(--text-secondary);">0 / 100 EXP</span>
+        </div>
+        <div class="mobile-profile-exp-bar-bg">
+          <div class="mobile-profile-exp-bar-fill" id="mobile-exp-fill"></div>
+        </div>
+        <!-- 當日 AI 用量計數 (手機版) -->
+        <div style="font-size:11px; color:var(--text-secondary); margin-top:4px; display:flex; justify-content:space-between;">
+          <span>今日 AI 額度：</span>
+          <span id="mobile-ai-usage" style="color:var(--secondary); font-weight:600;">已用 0 / 1500 次</span>
+        </div>
+      </div>
+    </div>
+
     <header style="flex-direction: column; align-items: flex-start; gap: 16px;">
       <div class="welcome-msg" style="display:flex; flex-direction:column; gap:8px; width:100%;">
         <h1 id="welcome-title">Hi, 英語學習者!</h1>
         <p id="welcome-sub-desc">今天也是挑戰自我的一天，準備好進行衝刺了嗎？</p>
-        
-        <!-- 考試目標切換器 (橫向拉長排列) -->
-        <div class="exam-switcher-container">
-          <button class="exam-switch-btn active" id="exam-switch-dict" onclick="switchExamGoal('dict')">📚 智能分級單字 (本地詞庫)</button>
-          <button class="exam-switch-btn" id="exam-switch-rn" onclick="switchExamGoal('rn')">🩺 NCLEX-RN 護理師</button>
-          <button class="exam-switch-btn" id="exam-switch-gemini" onclick="switchExamGoal('gemini')">✨ Gemini AI 智能出題</button>
-        </div>
       </div>
     </header>
 
@@ -151,6 +188,13 @@
 
     <!-- ================= 2. 學習練習區 ================= -->
     <section id="practice-section" class="content-section">
+      <!-- 考試目標切換器 (改放置在學習練習區頂端) -->
+      <div class="exam-switcher-container" style="margin-bottom: 24px;">
+        <button class="exam-switch-btn active" id="exam-switch-dict" onclick="switchExamGoal('dict')">📚 智能分級單字 (本地詞庫)</button>
+        <button class="exam-switch-btn" id="exam-switch-rn" onclick="switchExamGoal('rn')">🩺 NCLEX-RN 護理師</button>
+        <button class="exam-switch-btn" id="exam-switch-gemini" onclick="switchExamGoal('gemini')">✨ Gemini AI 智能出題</button>
+      </div>
+
       <div class="practice-header">
         <h2 class="current-practice-title">選擇練習領域</h2>
         <p style="color: var(--text-secondary); font-size: 14px;">每天練習不同領域，能全方位提升您的英文實力！</p>

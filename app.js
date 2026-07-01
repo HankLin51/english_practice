@@ -23,7 +23,8 @@ const INITIAL_STATE = {
   unlockedBadges: [],
   reviewBox: [], // { id, level, type, questionData, boxNum: 1, nextReviewDate: YYYY-MM-DD }
   dailyQuests: [], // { id, text, type, target, current, rewardCoins, rewardExp, completed }
-  questDate: "" // 任務生成日期 YYYY-MM-DD
+  questDate: "", // 任務生成日期 YYYY-MM-DD
+  aiUsage: { date: "", count: 0 }
 };
 
 let state = { ...INITIAL_STATE };
@@ -175,17 +176,28 @@ function loadState() {
   const stored = localStorage.getItem("toeic_practice_state_" + currentUser);
   if (stored) {
     try {
-      state = JSON.parse(stored);
-      state = { ...INITIAL_STATE, ...state };
-      state.stats = { ...INITIAL_STATE.stats, ...state.stats };
-      state.stats.categoryCounts = { ...INITIAL_STATE.stats.categoryCounts, ...state.stats.categoryCounts };
-      state.stats.categoryCorrect = { ...INITIAL_STATE.stats.categoryCorrect, ...state.stats.categoryCorrect };
+      const parsed = JSON.parse(stored);
+      state = { ...INITIAL_STATE, ...parsed };
+      state.stats = { ...INITIAL_STATE.stats, ...parsed.stats };
+      state.stats.categoryCounts = { ...INITIAL_STATE.stats.categoryCounts, ...parsed.stats?.categoryCounts };
+      state.stats.categoryCorrect = { ...INITIAL_STATE.stats.categoryCorrect, ...parsed.stats?.categoryCorrect };
+      // 確保防禦性 aiUsage 初始化
+      if (!state.aiUsage) {
+        state.aiUsage = { date: "", count: 0 };
+      }
     } catch (e) {
       console.error("狀態解析失敗，使用初始狀態", e);
       state = { ...INITIAL_STATE };
     }
   } else {
     state = { ...INITIAL_STATE };
+  }
+
+  // 跨天自動重置當日 AI 使用額度
+  const todayStr = getTodayString ? getTodayString() : new Date().toISOString().split('T')[0];
+  if (state.aiUsage.date !== todayStr) {
+    state.aiUsage.date = todayStr;
+    state.aiUsage.count = 0;
   }
 
   // 防禦性遷移：如果檢測到舊有的多益目標，自動轉移至新版預設的智能單字庫
@@ -220,6 +232,11 @@ function applyEquippedTheme() {
 
 // 更新頂端及側欄狀態
 function updateUIElements() {
+  const headerUserLabel = document.getElementById("header-username-label");
+  if (headerUserLabel) headerUserLabel.innerText = currentUser;
+  const mobileUserLabel = document.getElementById("mobile-username-label");
+  if (mobileUserLabel) mobileUserLabel.innerText = currentUser;
+
   // 經驗值與等級
   const levelText = document.getElementById("header-level-text");
   const expBarFill = document.getElementById("header-exp-fill");
@@ -249,6 +266,42 @@ function updateUIElements() {
   const sidebarLvl = document.getElementById("sidebar-level");
   if (sidebarUser) sidebarUser.innerText = currentUser;
   if (sidebarLvl) sidebarLvl.innerText = `LV.${state.level} • ${levelTitle}`;
+
+  // 手機版專屬頂部資訊更新
+  const mobileUser = document.getElementById("mobile-username-label");
+  const mobileStreak = document.getElementById("mobile-streak-val");
+  const mobileCoins = document.getElementById("mobile-coins-val");
+  const mobileLvlText = document.getElementById("mobile-level-text");
+  const mobileExpVal = document.getElementById("mobile-exp-val");
+  const mobileExpFill = document.getElementById("mobile-exp-fill");
+  const mobileStreakPill = document.getElementById("mobile-streak-pill");
+
+  if (mobileUser) mobileUser.innerText = currentUser;
+  if (mobileStreak) mobileStreak.innerText = `${state.streak} 天`;
+  if (mobileCoins) mobileCoins.innerText = state.coins;
+  if (mobileLvlText) mobileLvlText.innerText = `Lv. ${state.level} (${levelTitle})`;
+  if (mobileExpVal) mobileExpVal.innerText = `${state.exp} / ${expNeeded} EXP`;
+  if (mobileExpFill) mobileExpFill.style.width = `${expPercent}%`;
+  
+  if (mobileStreakPill) {
+    if (state.streak > 0) {
+      mobileStreakPill.classList.remove("inactive");
+    } else {
+      mobileStreakPill.classList.add("inactive");
+    }
+  }
+
+  // 更新當日 AI 額度顯示 (桌機與手機版)
+  const sidebarAiUsage = document.getElementById("sidebar-ai-usage");
+  const mobileAiUsage = document.getElementById("mobile-ai-usage");
+  const currentAiCount = (state.aiUsage && state.aiUsage.count) ? state.aiUsage.count : 0;
+  
+  if (sidebarAiUsage) {
+    sidebarAiUsage.innerText = `已用 ${currentAiCount} / 1500 次`;
+  }
+  if (mobileAiUsage) {
+    mobileAiUsage.innerText = `已用 ${currentAiCount} / 1500 次`;
+  }
 
   // 刷新特定面板的顯示
   updateReviewBoxCounts();
@@ -573,50 +626,74 @@ ${category === 'speaking' ? `
 
     const cleanApiKey = apiKey.trim();
 
-    // 定義多個備用端點與模型組合
+    // 定義多個官方推薦適用於免費版的端點與模型組合
     const endpoints = [
-      { version: "v1", model: "gemini-1.5-flash" },
-      { version: "v1beta", model: "gemini-1.5-flash" },
-      { version: "v1beta", model: "gemini-2.0-flash" }
+      { version: "v1beta", model: "gemini-2.5-flash" },
+      { version: "v1beta", model: "gemini-2.0-flash" },
+      { version: "v1beta", model: "gemini-3.5-flash" }
     ];
 
-    const tryFetch = (index) => {
-      if (index >= endpoints.length) {
-        throw new Error("404: 嘗試了所有模型端點皆返回 404。請確認您的 API 金鑰是否有權限存取 Gemini API。");
-      }
-      const ep = endpoints[index];
-      const url = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent?key=${cleanApiKey}`;
-      
-      return fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
-      }).then(res => {
-        if (res.status === 404) {
-          console.warn(`端點 ${ep.version}/${ep.model} 返回 404，嘗試下一個備用端點...`);
-          return tryFetch(index + 1);
+    const tryFetch = async () => {
+      let lastError = null;
+      for (const ep of endpoints) {
+        const url = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent?key=${cleanApiKey}`;
+        try {
+          console.log(`正在嘗試使用 ${ep.version}/${ep.model} 發送請求...`);
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }]
+            })
+          });
+          
+          if (res.ok) {
+            return await res.json();
+          } else {
+            const bodyText = await res.text();
+            let msg = `HTTP ${res.status}`;
+            try {
+              const errJson = JSON.parse(bodyText);
+              msg = errJson?.error?.message || msg;
+            } catch(e) {}
+            lastError = new Error(`${res.status}: ${msg}`);
+            console.warn(`使用 ${ep.model} 失敗: ${msg}`);
+            if (res.status === 429) {
+              // 429 頻率限制直接拋出，不嘗試其他模型
+              throw new Error("RATE_LIMIT_429");
+            }
+          }
+        } catch (err) {
+          lastError = err;
+          if (err.message === "RATE_LIMIT_429") {
+            throw err;
+          }
         }
-        return res;
-      });
+      }
+      
+      // 若全部模型均失敗，向 Google 查詢該 API 金鑰當前支援的可用模型列表
+      try {
+        const checkUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanApiKey}`;
+        const checkRes = await fetch(checkUrl);
+        if (!checkRes.ok) {
+          const checkText = await checkRes.text();
+          let checkMsg = `HTTP ${checkRes.status}`;
+          try {
+            const checkJson = JSON.parse(checkText);
+            checkMsg = checkJson?.error?.message || checkMsg;
+          } catch(e) {}
+          throw new Error(`[金鑰授權錯誤] ${checkRes.status}: ${checkMsg}`);
+        } else {
+          const checkData = await checkRes.json();
+          const supported = (checkData.models || []).map(m => m.name.replace("models/", "")).join(", ");
+          throw new Error(`404: 您的專案不支援上述測試模型。但此 Key 支援以下可用模型：[ ${supported} ]，請檢查設定。`);
+        }
+      } catch (checkErr) {
+        throw checkErr;
+      }
     };
 
-    tryFetch(0)
-    .then(res => {
-      if (!res.ok) {
-        return res.text().then(body => {
-          let errMsg = `HTTP ${res.status}`;
-          try {
-            const errData = JSON.parse(body);
-            errMsg = errData?.error?.message || errMsg;
-          } catch(e) {}
-          if (res.status === 429) throw new Error("RATE_LIMIT_429");
-          throw new Error(`${res.status}: ${errMsg}`);
-        });
-      }
-      return res.json();
-    })
+    tryFetch()
     .then(data => {
       try {
         let text = data.candidates[0].content.parts[0].text;
@@ -624,6 +701,18 @@ ${category === 'speaking' ? `
         text = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
         const questions = JSON.parse(text);
         
+        // 累加今日 AI 出題次數並儲存
+        if (!state.aiUsage) {
+          state.aiUsage = { date: "", count: 0 };
+        }
+        const todayStr = getTodayString ? getTodayString() : new Date().toISOString().split('T')[0];
+        if (state.aiUsage.date !== todayStr) {
+          state.aiUsage.date = todayStr;
+          state.aiUsage.count = 0;
+        }
+        state.aiUsage.count += 1;
+        saveState();
+
         // 給予題目唯一的 id
         const formattedQuestions = questions.map((q, idx) => {
           q.id = `api_gemini_${category}_${idx}_${Date.now()}`;
@@ -651,9 +740,9 @@ ${category === 'speaking' ? `
     .catch(err => {
       console.error("Gemini 請求錯誤:", err);
       if (err.message === "RATE_LIMIT_429") {
-        alert("❗ Gemini 免費配額已用盡！\n\n您的帳號為免費方案，每日最多對 Gemini 1.5 Flash 發送 1500 次請求。\n\n解決方式：\n① 等待隔天（藿天配額自動重置）\n② 唤難模式改用「智能分級單字 (API)」簡単練習\n③ 前往 Google AI Studio 開通付費方案取得更高配額限額");
+        alert("❗ Gemini 請求速率限制 (429)！\n\n這可能是以下原因之一造成的：\n① 超出每分鐘請求頻率限制 (RPM)：免費 API 金鑰每分鐘有次數限制，請「等待 1 分鐘」後再試一次。\n② 每日免費配額已用完（每日上限 1500 次）。\n\n解決方式：\n• 先稍等 1 分鐘後重新點擊練習。\n• 前往 Google AI Studio 確認帳號狀態或改用付費綁卡方案。");
       } else {
-        alert("無法串接 Gemini AI！\n錯誤原因：" + err.message + "\n\n請確認：\n① API Key 是否正確且已點「儲存 API 金鑰」\n② 您的 Google AI Studio 帳號是否有啟用 Gemini API");
+        alert("無法串接 Gemini AI！\n錯誤原因：" + err.message + "\n\n請確認：\n① API Key 是否正確且已點「儲存 API 金鑰」\n② 您的 Google AI Studio 帳號是否有啟用 Gemini API\n③ 是否複製到了額外的空格");
       }
       exitPractice();
     });
@@ -1560,14 +1649,30 @@ function renderReviewBoxList() {
   if (!container) return;
 
   const todayStr = getTodayString();
-  const waitingReviews = state.reviewBox.filter(item => item.nextReviewDate <= todayStr);
+  
+  // 依據當前 examGoal 過濾複習箱內容
+  const waitingReviews = state.reviewBox.filter(item => {
+    if (item.nextReviewDate > todayStr) return false;
+    const qid = item.id || "";
+    if (state.examGoal === "rn") {
+      return qid.startsWith("rn_");
+    } else if (state.examGoal === "api") {
+      // 聯網 api 題 (不包含 api_gemini)
+      return qid.startsWith("api_") && !qid.startsWith("api_gemini_");
+    } else if (state.examGoal === "gemini") {
+      return qid.startsWith("api_gemini_");
+    } else {
+      // dict: 本地單字/片語/句型/文法 (不以 rn_ 開頭，也不以 api_ 開頭)
+      return !qid.startsWith("rn_") && !qid.startsWith("api_");
+    }
+  });
 
   if (waitingReviews.length === 0) {
     container.innerHTML = `
       <div style="text-align:center; padding:40px; color:var(--text-secondary); background:rgba(255,255,255,0.01); border-radius:12px; border:1px solid var(--border-color);">
         <i class="fas fa-check-circle" style="font-size:32px; color:var(--accent-green); margin-bottom:12px;"></i>
-        <p style="font-size:16px; font-weight:600;">目前複習箱中沒有待複習的題目！</p>
-        <p style="font-size:13px; margin-top:4px;">答錯的題目在 1 天、3 天、7 天後會自動回到複習清單。</p>
+        <p style="font-size:16px; font-weight:600;">目前本分類中沒有待複習的題目！</p>
+        <p style="font-size:13px; margin-top:4px;">答錯的題目會自動記錄，請切換至其他分類查看，或等複習時間重置。</p>
       </div>
     `;
     document.getElementById("start-all-reviews").style.display = "none";
@@ -1575,7 +1680,7 @@ function renderReviewBoxList() {
   }
 
   document.getElementById("start-all-reviews").style.display = "block";
-  document.getElementById("start-all-reviews").innerText = `開始複習全部 (${waitingReviews.length} 題)`;
+  document.getElementById("start-all-reviews").innerText = `開始複習本類別 (${waitingReviews.length} 題)`;
 
   container.innerHTML = waitingReviews.map(item => {
     let wordName = "";
@@ -1596,6 +1701,10 @@ function renderReviewBoxList() {
     } else if (item.type === "dialogue") {
       wordName = `對話口說: ${item.questionData.title}`;
       wordTranslation = item.questionData.roleB.substring(0, 40) + "...";
+    } else {
+      // 聯網、藥理等其他情況的相容降級
+      wordName = item.questionData.word || item.questionData.question || "英文練習題";
+      wordTranslation = item.questionData.translation || item.questionData.chinese || "複習項目";
     }
 
     return `
@@ -1616,7 +1725,19 @@ function renderReviewBoxList() {
 
 function startReviewSession() {
   const todayStr = getTodayString();
-  const waitingReviews = state.reviewBox.filter(item => item.nextReviewDate <= todayStr);
+  const waitingReviews = state.reviewBox.filter(item => {
+    if (item.nextReviewDate > todayStr) return false;
+    const qid = item.id || "";
+    if (state.examGoal === "rn") {
+      return qid.startsWith("rn_");
+    } else if (state.examGoal === "api") {
+      return qid.startsWith("api_") && !qid.startsWith("api_gemini_");
+    } else if (state.examGoal === "gemini") {
+      return qid.startsWith("api_gemini_");
+    } else {
+      return !qid.startsWith("rn_") && !qid.startsWith("api_");
+    }
+  });
   
   if (waitingReviews.length === 0) return;
 
@@ -2056,6 +2177,17 @@ function switchExamGoal(goal) {
   updateExamGoalUI();
   initDashboard();
 
+  // 若使用者當前正處在複習或分析面板，即時刷新內容呈現
+  const reviewSection = document.getElementById("review-section");
+  const analysisSection = document.getElementById("analysis-section");
+  
+  if (reviewSection && reviewSection.classList.contains("active")) {
+    renderReviewBoxList();
+  }
+  if (analysisSection && analysisSection.classList.contains("active")) {
+    updateAnalysisSection();
+  }
+
   if (sessionState) {
     sessionState = null;
     document.getElementById("practice-active-area").style.display = "none";
@@ -2067,27 +2199,28 @@ function updateExamGoalUI() {
   const rnBtn = document.getElementById("exam-switch-rn");
   const apiBtn = document.getElementById("exam-switch-api");
   const geminiBtn = document.getElementById("exam-switch-gemini");
-  if (dictBtn && rnBtn && apiBtn && geminiBtn) {
+  if (dictBtn && rnBtn && geminiBtn) {
     dictBtn.classList.remove("active");
     rnBtn.classList.remove("active");
-    apiBtn.classList.remove("active");
+    if (apiBtn) apiBtn.classList.remove("active");
     geminiBtn.classList.remove("active");
 
+    const namePart = (typeof currentUser !== 'undefined' && currentUser && currentUser !== "預設使用者") ? currentUser : "";
     if (state.examGoal === "rn") {
       rnBtn.classList.add("active");
-      document.getElementById("welcome-title").innerText = `Hi, 護理挑戰者!`;
+      document.getElementById("welcome-title").innerText = namePart ? `Hi, ${namePart}!` : `Hi, 護理挑戰者!`;
       document.getElementById("welcome-sub-desc").innerText = "點選下方護理師學科，隨時進行英文命題的實戰練習！";
     } else if (state.examGoal === "api") {
       apiBtn.classList.add("active");
-      document.getElementById("welcome-title").innerText = `Hi, 國際挑戰者!`;
+      document.getElementById("welcome-title").innerText = namePart ? `Hi, ${namePart}!` : `Hi, 國際挑戰者!`;
       document.getElementById("welcome-sub-desc").innerText = "這項題庫透過雲端公開 API 聯網生成，提供無限的跨學科常識與英語閱讀測驗！";
     } else if (state.examGoal === "gemini") {
       geminiBtn.classList.add("active");
-      document.getElementById("welcome-title").innerText = `Hi, AI 探索者!`;
+      document.getElementById("welcome-title").innerText = namePart ? `Hi, ${namePart}!` : `Hi, AI 探索者!`;
       document.getElementById("welcome-sub-desc").innerText = "整合 Google Gemini AI 智能出題，依據您的能力等級與練習弱點，即時量身打造高水準英文題目！";
     } else {
       dictBtn.classList.add("active");
-      document.getElementById("welcome-title").innerText = `Hi, 單字挑戰者!`;
+      document.getElementById("welcome-title").innerText = namePart ? `Hi, ${namePart}!` : `Hi, 單字挑戰者!`;
       document.getElementById("welcome-sub-desc").innerText = "串接免費 Free Dictionary API，帶您由淺入深，透過上下文精準掌握分級英語單字！";
     }
   }
@@ -2197,18 +2330,21 @@ function renderPracticeMenu() {
     updateMenuCard(cards[2], "pediatric", "fas fa-baby", "兒科護理 (Pediatric)", "急性會厭炎、乳糜瀉飲食管理等兒童成長與急症護理測驗。", rnCount("pediatric"));
     updateMenuCard(cards[3], "maternity", "fas fa-heartbeat", "產科婦幼 (Maternity)", "前置胎盤、胎盤早剝、催產素點點滴監測等婦產科高頻考題。", rnCount("maternity"));
     updateMenuCard(cards[4], "dialogue", "fas fa-user-nurse", "臨床護理口說 (Speaking)", "練習護理人員與患者及家容溝通的日常職場英語口說。", rnCount("dialogue"));
+    for (let i = 5; i < cards.length; i++) cards[i].style.display = "none";
   } else if (state.examGoal === "api") {
     updateMenuCard(cards[0], "gk", "fas fa-globe", "綜合英語常識", "挑戰包含生活科普、常識等多元主題的雲端隨機英語閱讀測驗。");
     updateMenuCard(cards[1], "science", "fas fa-atom", "科學與自然", "向雲端伺服器載入最新的科學、物理、化學與自然生態英文題目。");
     updateMenuCard(cards[2], "history", "fas fa-landmark", "歷史與文化", "測驗有關世界歷史、文化事件與重要里程碑的英語題目。");
     updateMenuCard(cards[3], "geography", "fas fa-map-marked-alt", "地理與世界", "探索全球地理、各國首都與地標常識的即時英文考題。");
     updateMenuCard(cards[4], "animals", "fas fa-paw", "動物與生態", "測驗大自然奇妙動物、昆蟲與生態系等趣味英語科學常識。");
+    for (let i = 5; i < cards.length; i++) cards[i].style.display = "none";
   } else if (state.examGoal === "gemini") {
     updateMenuCard(cards[0], "vocab", "fas fa-spell-check", "AI 單字測驗", "由 Gemini 即時生成專屬的英英釋義與單字搭配選擇題。");
     updateMenuCard(cards[1], "grammar", "fas fa-tasks", "AI 語法結構", "由 AI 生成克漏字或文法填空，附帶超詳細的中英文解析。");
     updateMenuCard(cards[2], "reading", "fas fa-book-open", "AI 閱讀理解", "生成一篇短小的英文商務或日常對話故事，並附帶理解問題測驗。");
     updateMenuCard(cards[3], "dialogue", "fas fa-comments", "AI 情境對話", "AI 精選實用商業或生活場景對話，提供互動式克漏字閱讀。");
     updateMenuCard(cards[4], "speaking", "fas fa-microphone", "AI 職場口說", "利用語音辨識大聲唸出 AI 為您生成的職場溝通例句，賺取金幣！");
+    for (let i = 5; i < cards.length; i++) cards[i].style.display = "none";
   } else {
     const l1Count = (typeof ECDICT_DATA !== 'undefined' && ECDICT_DATA.level1) ? ECDICT_DATA.level1.length : (DICT_WORDLIST.level1 ? DICT_WORDLIST.level1.length : 0);
     const l2Count = (typeof ECDICT_DATA !== 'undefined' && ECDICT_DATA.level2) ? ECDICT_DATA.level2.length : (DICT_WORDLIST.level2 ? DICT_WORDLIST.level2.length : 0);
@@ -2224,7 +2360,7 @@ function renderPracticeMenu() {
     updateMenuCard(cards[2], "level3", "fas fa-tree", "Level 3 (中級單字 - B1)", "涵蓋學術與工作常用基礎詞彙，提升英文聽讀理解力。", l3Count);
     updateMenuCard(cards[3], "level4", "fas fa-graduation-cap", "Level 4 (中高單字 - B2)", "商務、時事與思辨核心詞彙，挑戰更流暢的英文表達。", l4Count);
     updateMenuCard(cards[4], "level5", "fas fa-crown", "Level 5 (高級單字 - C1)", "高難度、文學及專業論述詞彙，適合追求英文完美的挑戰者。", l5Count);
-    // 片語、句型、文法卡片（如果存在）
+    for (let i = 5; i < cards.length; i++) cards[i].style.display = "flex";
     if (cards.length > 5) updateMenuCard(cards[5], "phrase", "fas fa-quote-left", "常用片語測驗 (Idioms)", "精選實用英文片語與成語，挑戰雙語意思配對。", phraseCount);
     if (cards.length > 6) updateMenuCard(cards[6], "sentence", "fas fa-align-left", "實用句型重組 (Sentences)", "根據中文意思，將打亂的英文單字重新排列組合成正確句子。", sentenceCount);
     if (cards.length > 7) updateMenuCard(cards[7], "grammar", "fas fa-exclamation-triangle", "文法挑錯挑戰 (Grammar)", "辨識並挑出句子中的文法錯誤，增強寫作與語法邏輯。", grammarCount);

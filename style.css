@@ -1964,3 +1964,87 @@ header {
   }
 }
 
+/* 手機版頂部個人資訊欄位樣式 */
+.mobile-profile-container {
+  display: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--btn-radius);
+  padding: 12px 16px;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  box-shadow: var(--glass-shadow);
+}
+
+.mobile-profile-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.mobile-profile-user {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-profile-user i {
+  color: var(--primary);
+}
+
+.mobile-profile-stats {
+  display: flex;
+  gap: 8px;
+}
+
+.mobile-profile-stats .streak-pill,
+.mobile-profile-stats .coins-pill {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+}
+
+.mobile-profile-exp {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.mobile-profile-exp-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.mobile-profile-exp-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.mobile-profile-exp-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  width: 0%;
+}
+
+@media (max-width: 768px) {
+  .mobile-profile-container {
+    display: flex;
+  }
+}
+
