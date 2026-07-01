@@ -2045,6 +2045,11 @@ header {
 @media (max-width: 768px) {
   .mobile-profile-container {
     display: flex;
+    margin-top: env(safe-area-inset-top, 20px); /* 留出 iPhone 劉海屏高度，防止被狀態列遮擋 */
+  }
+
+  .sidebar {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px) !important; /* 確保 iOS 底部橫條不遮擋導覽鈕 */
   }
 }
 

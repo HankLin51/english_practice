@@ -152,6 +152,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (restoreInput) {
       restoreInput.addEventListener("change", handleRestoreFileSelected);
     }
+
+    // 註冊 PWA Service Worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js")
+        .then(() => console.log("PWA Service Worker 註冊成功！"))
+        .catch(err => console.error("Service Worker 註冊失敗", err));
+    }
   } catch (err) {
     console.error("Initialization error:", err);
     alert("網頁載入出錯：\n" + err.name + ": " + err.message + "\n\n詳細追蹤堆疊：\n" + err.stack);
@@ -217,8 +224,8 @@ function loadState() {
     state.aiUsage.count = 0;
   }
 
-  // 防禦性遷移：如果檢測到舊有的多益目標，自動轉移至新版預設的智能單字庫
-  if (!["dict", "rn", "api", "gemini"].includes(state.examGoal)) {
+  // 防禦性遷移：如果檢測到舊有的多益目標或已廢棄的 api 目標，自動轉移至新版預設的智能單字庫
+  if (!["dict", "rn", "gemini"].includes(state.examGoal)) {
     state.examGoal = "dict";
   }
 
@@ -2043,9 +2050,6 @@ function updateAnalysisSection() {
   if (state.examGoal === "rn") {
     categories = ["pharmacology", "medSurg", "pediatric", "maternity", "dialogue"];
     catNames = { pharmacology: "藥理學", medSurg: "內外科護理", pediatric: "兒科護理", maternity: "產科婦幼", dialogue: "臨床口說" };
-  } else if (state.examGoal === "api") {
-    categories = ["gk", "science", "history", "geography", "animals"];
-    catNames = { gk: "綜合常識", science: "科學自然", history: "歷史文化", geography: "地理世界", animals: "動物生態" };
   } else if (state.examGoal === "gemini") {
     categories = ["vocab", "grammar", "reading", "dialogue", "speaking"];
     catNames = { vocab: "AI 單字", grammar: "AI 文法", reading: "AI 閱讀", dialogue: "AI 對話", speaking: "AI 口說" };
@@ -2395,12 +2399,10 @@ function switchExamGoal(goal) {
 function updateExamGoalUI() {
   const dictBtn = document.getElementById("exam-switch-dict");
   const rnBtn = document.getElementById("exam-switch-rn");
-  const apiBtn = document.getElementById("exam-switch-api");
   const geminiBtn = document.getElementById("exam-switch-gemini");
   if (dictBtn && rnBtn && geminiBtn) {
     dictBtn.classList.remove("active");
     rnBtn.classList.remove("active");
-    if (apiBtn) apiBtn.classList.remove("active");
     geminiBtn.classList.remove("active");
 
     const namePart = (typeof currentUser !== 'undefined' && currentUser && currentUser !== "預設使用者") ? currentUser : "";
@@ -2408,10 +2410,6 @@ function updateExamGoalUI() {
       rnBtn.classList.add("active");
       document.getElementById("welcome-title").innerText = namePart ? `Hi, ${namePart}!` : `Hi, 護理挑戰者!`;
       document.getElementById("welcome-sub-desc").innerText = "點選下方護理師學科，隨時進行英文命題的實戰練習！";
-    } else if (state.examGoal === "api") {
-      apiBtn.classList.add("active");
-      document.getElementById("welcome-title").innerText = namePart ? `Hi, ${namePart}!` : `Hi, 國際挑戰者!`;
-      document.getElementById("welcome-sub-desc").innerText = "這項題庫透過雲端公開 API 聯網生成，提供無限的跨學科常識與英語閱讀測驗！";
     } else if (state.examGoal === "gemini") {
       geminiBtn.classList.add("active");
       document.getElementById("welcome-title").innerText = namePart ? `Hi, ${namePart}!` : `Hi, AI 探索者!`;
@@ -2457,13 +2455,6 @@ function renderPracticeMenu() {
     updateMenuCard(cards[2], "pediatric", "fas fa-baby", "兒科護理 (Pediatric)", "急性會厭炎、乳糜瀉飲食管理等兒童成長與急症護理測驗。", rnCount("pediatric"));
     updateMenuCard(cards[3], "maternity", "fas fa-heartbeat", "產科婦幼 (Maternity)", "前置胎盤、胎盤早剝、催產素點點滴監測等婦產科高頻考題。", rnCount("maternity"));
     updateMenuCard(cards[4], "dialogue", "fas fa-user-nurse", "臨床護理口說 (Speaking)", "練習護理人員與患者及家容溝通的日常職場英語口說。", rnCount("dialogue"));
-    for (let i = 5; i < cards.length; i++) cards[i].style.display = "none";
-  } else if (state.examGoal === "api") {
-    updateMenuCard(cards[0], "gk", "fas fa-globe", "綜合英語常識", "挑戰包含生活科普、常識等多元主題的雲端隨機英語閱讀測驗。");
-    updateMenuCard(cards[1], "science", "fas fa-atom", "科學與自然", "向雲端伺服器載入最新的科學、物理、化學與自然生態英文題目。");
-    updateMenuCard(cards[2], "history", "fas fa-landmark", "歷史與文化", "測驗有關世界歷史、文化事件與重要里程碑的英語題目。");
-    updateMenuCard(cards[3], "geography", "fas fa-map-marked-alt", "地理與世界", "探索全球地理、各國首都與地標常識的即時英文考題。");
-    updateMenuCard(cards[4], "animals", "fas fa-paw", "動物與生態", "測驗大自然奇妙動物、昆蟲與生態系等趣味英語科學常識。");
     for (let i = 5; i < cards.length; i++) cards[i].style.display = "none";
   } else if (state.examGoal === "gemini") {
     // 重新定義的 7 張 AI 學習練習卡片
@@ -2566,6 +2557,16 @@ function renderUserModal() {
   }).join("");
 
   updateBackupStatusUI();
+
+  // 若不支援自動備份資料夾功能（如 iOS PWA / 手機瀏覽器），隱藏該設定區塊以維持介面美觀
+  const backupSection = document.querySelector(".backup-settings-section");
+  if (backupSection) {
+    if (!('showDirectoryPicker' in window)) {
+      backupSection.style.display = "none";
+    } else {
+      backupSection.style.display = "block";
+    }
+  }
 
   const keyInput = document.getElementById("gemini-api-key-input");
   if (keyInput) {
