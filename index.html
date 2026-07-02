@@ -214,12 +214,11 @@
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap; width: 100%; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
           <span style="font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap;"><i class="fas fa-signal"></i> 難易度設定：</span>
           <select id="gemini-custom-level" style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); padding: 6px 12px; font-size: 13px; outline: none; cursor: pointer;">
-            <option value="toeic_basic">多益入門級 (TOEIC 350-550)</option>
-            <option value="toeic_mid" selected>多益中高階 (TOEIC 550-785)</option>
-            <option value="toeic_high">多益高階級 (TOEIC 785-990)</option>
-            <option value="toefl_basic">托福學術初級 (TOEFL 60-80)</option>
-            <option value="toefl_mid">托福學術進階 (TOEFL 80-100)</option>
-            <option value="toefl_high">托福學術大師 (TOEFL 100+)</option>
+            <option value="toeic_10_400">初級 / 初中級 [A1] (TOEIC 10-400分)</option>
+            <option value="toeic_405_600">中等級 [A2] (TOEIC 405-600分)</option>
+            <option value="toeic_605_780" selected>中高等級 [B1] (TOEIC 605-780分)</option>
+            <option value="toeic_785_900">進階級 [B2] (TOEIC 785-900分)</option>
+            <option value="toeic_905_990">最高進階級 [C1-C2] (TOEIC 905-990分)</option>
           </select>
         </div>
       </div>
@@ -321,6 +320,17 @@
           <span class="leitner-box-count" id="review-box-3-count">0</span>
           <span class="leitner-box-label">長期記憶挑戰</span>
           <span class="leitner-box-interval">每 7 天複習一次</span>
+        </div>
+      </div>
+
+      <!-- 新增：今日錯題題型快速篩選複習區 -->
+      <div class="section-card" style="margin-bottom: 20px;">
+        <h3 class="section-title" style="display:flex; align-items:center; gap:8px;">
+          <i class="fas fa-history" style="color:var(--secondary)"></i> 當日錯題快速複習
+        </h3>
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">以下列出您今天練習中答錯的題型分類。點擊分類即可立即進入該類別的專屬複習！</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;" id="today-wrong-filters-container">
+          <!-- JS 動態生成今日錯題題型篩選按鈕 -->
         </div>
       </div>
 

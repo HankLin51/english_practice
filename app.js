@@ -153,12 +153,31 @@ document.addEventListener("DOMContentLoaded", () => {
       restoreInput.addEventListener("change", handleRestoreFileSelected);
     }
 
-    // 註冊 PWA Service Worker
+    // Register PWA Service Worker
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js")
-        .then(() => console.log("PWA Service Worker 註冊成功！"))
-        .catch(err => console.error("Service Worker 註冊失敗", err));
+        .then(() => console.log("PWA Service Worker register success!"))
+        .catch(err => console.error("Service Worker register failed", err));
     }
+
+    // Prefetch caching trigger hooks
+    const lvlSelect = document.getElementById("gemini-custom-level");
+    if (lvlSelect) {
+      lvlSelect.addEventListener("change", () => {
+        geminiPrefetchCache = {};
+        triggerPrefetchAll();
+      });
+    }
+    const kwInput = document.getElementById("gemini-custom-keyword");
+    if (kwInput) {
+      kwInput.addEventListener("change", () => {
+        geminiPrefetchCache = {};
+        triggerPrefetchAll();
+      });
+    }
+    setTimeout(() => {
+      triggerPrefetchAll();
+    }, 2000);
   } catch (err) {
     console.error("Initialization error:", err);
     alert("網頁載入出錯：\n" + err.name + ": " + err.message + "\n\n詳細追蹤堆疊：\n" + err.stack);
@@ -597,14 +616,62 @@ function startPractice(category) {
   practiceActiveArea.style.display = "block";
   
   if (state.examGoal === "gemini") {
-    const apiKey = localStorage.getItem("gemini_api_key_" + currentUser);
+    const apiKey = localStorage.getItem("gemini_api_key_global");
     if (!apiKey) {
       alert("請先點選右上角『帳號管理』並貼上您的 Gemini API Key！");
       exitPractice();
       return;
     }
 
-    // 顯示載入動畫
+    // A. 優先檢查是否命中 prefetch 雙緩存
+    const lvlSelect = document.getElementById("gemini-custom-level");
+    const selectedLvl = lvlSelect ? lvlSelect.value : "toeic_mid";
+    const kwInput = document.getElementById("gemini-custom-keyword");
+    const userKeyword = kwInput ? kwInput.value.trim() : "";
+
+    const cacheKey = `${category}_${selectedLvl}_${userKeyword}`;
+    const cachedQuestionsRaw = geminiPrefetchCache[cacheKey];
+
+    // 如果快取存在但根本不是陣列，直接強制清除它
+    if (cachedQuestionsRaw && !Array.isArray(cachedQuestionsRaw)) {
+      delete geminiPrefetchCache[cacheKey];
+    }
+
+    const cachedQuestions = geminiPrefetchCache[cacheKey];
+
+    if (cachedQuestions && Array.isArray(cachedQuestions) && cachedQuestions.length > 0) {
+      console.log(`[Cache Hit] 成功秒開快取題目，分類：${category}`);
+      
+      // 取出快取题目
+      const selectedQuestions = [...cachedQuestions];
+      
+      // 立即清空快取以防重複使用舊題
+      delete geminiPrefetchCache[cacheKey];
+
+      // 防禦性 category 轉換，確保口說/聽力等能對應到 dialogue 渲染模組
+      const finalCategory = (category === "speaking" || category === "ai_speaking_pronounce") ? "dialogue" : category;
+
+      sessionState = {
+        category: finalCategory,
+        questions: selectedQuestions,
+        currentIndex: 0,
+        score: 0,
+        wrongAnswers: [],
+        startTime: Date.now(),
+        isReviewSession: false
+      };
+
+      // 渲染題目
+      renderQuestion();
+
+      // 在背景安靜地補充下一批新快取，保證下次點擊同樣是秒開，且不卡頓
+      setTimeout(() => {
+        prefetchGeminiQuestions(category, selectedLvl, userKeyword);
+      }, 3000);
+      return;
+    }
+
+    // B. 快取未命中 (或首次載入無快取) ➡️ 退回到即時載入模式
     practiceActiveArea.innerHTML = `
       <div style="text-align:center; padding:50px; color:var(--text-secondary);">
         <i class="fas fa-spinner fa-spin" style="font-size:40px; margin-bottom:20px; color:#a78bfa;"></i>
@@ -613,13 +680,7 @@ function startPractice(category) {
       </div>
     `;
 
-    // 讀取客製化關鍵字並清除首尾空白
-    const kwInput = document.getElementById("gemini-custom-keyword");
-    const userKeyword = kwInput ? kwInput.value.trim() : "";
-
-    // 讀取並轉換多益/托福難易度分階
-    const lvlSelect = document.getElementById("gemini-custom-level");
-    const selectedLvl = lvlSelect ? lvlSelect.value : "toeic_mid";
+    // 複用上方已經讀取好的變數即可，不重複宣告
     let targetDifficultyStr = "中級 (約多益 550-785 分)";
     if (selectedLvl === "toeic_basic") targetDifficultyStr = "入門級 (約多益 350-550 分，使用日常基礎單字與簡單對話)";
     else if (selectedLvl === "toeic_high") targetDifficultyStr = "高階級 (約多益 785-990 分，使用商務合約、正式談判與思辨用詞)";
@@ -700,16 +761,20 @@ function startPractice(category) {
     const prompt = `你是一個專業的英文老師。請幫我出 ${questionCount} 題英語 ${categoryName} 練習題。
 難度設定為：${targetDifficultyStr}。${conditionPrompt}
 
-${category === 'ai_speaking_pronounce' ? typeSpecificPrompt : `
+請嚴格輸出符合 JSON 格式的陣列，不要包含任何 markdown 標籤如 \`\`\`json，且只回傳乾淨的 JSON，不要回覆任何「好的」或問候語句。每個解析 (explanation) 欄位必須非常精簡且絕對不能超過 40 個字。
+
+${category === 'ai_speaking_pronounce' ? `
+請嚴格按照以下針對口說的 JSON 格式輸出：
 ${typeSpecificPrompt}
-請嚴格輸出符合以下 JSON 格式的陣列（不要包含任何 markdown 標籤如 \`\`\`json 或額外說明文字，只回傳乾淨的 JSON）。每個解析 (explanation) 欄位「必須非常精簡且絕對不能超過 40 個字」：
+` : `
+${typeSpecificPrompt}
 [
   {
     "id": "gemini_${category}_1",
     "question": "英文題目內容",
     "options": ["選項1", "選項2", "選項3", "選項4"],
-    "answer": 0,
-    "explanation": "極簡中文解析與答案翻譯（限 40 字內）"
+    "answer": 2,
+    "explanation": "極簡中文解析與答案翻譯"
   }
 ]
 `}`;
@@ -719,8 +784,7 @@ ${typeSpecificPrompt}
     // 定義多個官方推薦適用於免費版的端點與模型組合
     const endpoints = [
       { version: "v1beta", model: "gemini-2.5-flash" },
-      { version: "v1beta", model: "gemini-2.0-flash" },
-      { version: "v1beta", model: "gemini-3.5-flash" }
+      { version: "v1beta", model: "gemini-flash-latest" }
     ];
 
     const tryFetch = async () => {
@@ -749,15 +813,11 @@ ${typeSpecificPrompt}
             lastError = new Error(`${res.status}: ${msg}`);
             console.warn(`使用 ${ep.model} 失敗: ${msg}`);
             if (res.status === 429) {
-              // 429 頻率限制直接拋出，不嘗試其他模型
-              throw new Error("RATE_LIMIT_429");
+              lastError = new Error("RATE_LIMIT_429");
             }
           }
         } catch (err) {
           lastError = err;
-          if (err.message === "RATE_LIMIT_429") {
-            throw err;
-          }
         }
       }
       
@@ -803,15 +863,42 @@ ${typeSpecificPrompt}
         state.aiUsage.count += 1;
         saveState();
 
-        // 給予題目唯一的 id
-        const formattedQuestions = questions.map((q, idx) => {
+        // 強健防禦：若 AI 回傳單一物件而非陣列，自動將其包裝為陣列以支援 map
+        let questionsArray = [];
+        if (Array.isArray(questions)) {
+          questionsArray = questions;
+        } else if (questions && typeof questions === "object") {
+          questionsArray = [questions];
+        }
+
+        // 給予題目唯一的 id，並手動對選擇題選項進行客戶端隨機打亂，防範 AI 總是把答案放在 A 的 Bug
+        const formattedQuestions = questionsArray.map((q, idx) => {
           q.id = `api_gemini_${category}_${idx}_${Date.now()}`;
+          
+          // 口說題沒有 options，只有選擇題才需要打亂
+          if (category !== "ai_speaking_pronounce" && q.options && q.options.length > 0 && typeof q.answer !== "undefined") {
+            try {
+              const correctAnswerText = q.options[q.answer]; // 取出原本的答案字串
+              if (correctAnswerText) {
+                // 將選項陣列配對並隨機排序
+                const shuffledOptions = [...q.options].sort(() => Math.random() - 0.5);
+                // 在打亂後的陣列中，定位出正確答案的新索引
+                const newAnswerIdx = shuffledOptions.indexOf(correctAnswerText);
+                if (newAnswerIdx !== -1) {
+                  q.options = shuffledOptions;
+                  q.answer = newAnswerIdx;
+                }
+              }
+            } catch (e) {
+              console.warn("打亂題目選項失敗，使用原順序：", e);
+            }
+          }
           return q;
         });
 
-        // 如果是 speaking，我們需要將其分類改為 dialogue 才能正常觸發口說 UI 渲染
+        // 如果是口說，我們需要將其分類改為 dialogue 才能正常觸發口說 UI 渲染
         sessionState = {
-          category: category === "speaking" ? "dialogue" : category,
+          category: (category === "speaking" || category === "ai_speaking_pronounce") ? "dialogue" : category,
           questions: formattedQuestions,
           currentIndex: 0,
           score: 0,
@@ -1054,7 +1141,7 @@ function renderQuestion() {
   
   let contentHtml = "";
 
-  if (q.id.startsWith("api_")) {
+  if (q.id.startsWith("api_") && sessionState.category !== "dialogue") {
     // 線上 API 題庫渲染
     const catNames = { 
       gk: "綜合英語常識", 
@@ -1127,8 +1214,11 @@ function renderQuestion() {
           `).join("")}
         </div>
         <div id="explanation-box"></div>
-        <div class="quiz-footer">
-          <button class="exit-btn" onclick="exitPractice()">退出練習</button>
+        <div class="quiz-footer" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+          <div style="display:flex; gap:10px;">
+            <button class="exit-btn" onclick="exitPractice()">退出練習</button>
+            <button class="exit-btn" onclick="addCurrentToWrongAndSkip()" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.3); color: var(--accent-red);"><i class="fas fa-bookmark"></i> 直接加入複習</button>
+          </div>
           <button class="next-btn" id="next-btn" style="display:none" onclick="goToNextQuestion()">下一題</button>
         </div>
       </div>
@@ -1154,8 +1244,11 @@ function renderQuestion() {
           `).join("")}
         </div>
         <div id="explanation-box"></div>
-        <div class="quiz-footer">
-          <button class="exit-btn" onclick="exitPractice()">退出練習</button>
+        <div class="quiz-footer" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+          <div style="display:flex; gap:10px;">
+            <button class="exit-btn" onclick="exitPractice()">退出練習</button>
+            <button class="exit-btn" onclick="addCurrentToWrongAndSkip()" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.3); color: var(--accent-red);"><i class="fas fa-bookmark"></i> 直接加入複習</button>
+          </div>
           <button class="next-btn" id="next-btn" style="display:none" onclick="goToNextQuestion()">下一題</button>
         </div>
       </div>
@@ -1179,8 +1272,11 @@ function renderQuestion() {
           `).join("")}
         </div>
         <div id="explanation-box"></div>
-        <div class="quiz-footer">
-          <button class="exit-btn" onclick="exitPractice()">退出練習</button>
+        <div class="quiz-footer" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+          <div style="display:flex; gap:10px;">
+            <button class="exit-btn" onclick="exitPractice()">退出練習</button>
+            <button class="exit-btn" onclick="addCurrentToWrongAndSkip()" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.3); color: var(--accent-red);"><i class="fas fa-bookmark"></i> 直接加入複習</button>
+          </div>
           <button class="next-btn" id="next-btn" style="display:none" onclick="goToNextQuestion()">下一題</button>
         </div>
       </div>
@@ -1205,8 +1301,11 @@ function renderQuestion() {
           `).join("")}
         </div>
         <div id="explanation-box"></div>
-        <div class="quiz-footer">
-          <button class="exit-btn" onclick="exitPractice()">退出練習</button>
+        <div class="quiz-footer" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+          <div style="display:flex; gap:10px;">
+            <button class="exit-btn" onclick="exitPractice()">退出練習</button>
+            <button class="exit-btn" onclick="addCurrentToWrongAndSkip()" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.3); color: var(--accent-red);"><i class="fas fa-bookmark"></i> 直接加入複習</button>
+          </div>
           <button class="next-btn" id="next-btn" style="display:none" onclick="goToNextQuestion()">下一題</button>
         </div>
       </div>
@@ -1345,7 +1444,7 @@ function checkMultipleChoiceAnswer(selectedIndex, correctIndex) {
   }
   
   expBox.innerHTML = `
-    <div class="explanation-card">
+    <div class="explanation-card" id="active-explanation-card">
       <h4>${isCorrect ? '✨ 回答正確！' : '❌ 答錯了，看解析學習：'}</h4>
       <p><strong>題目內文：</strong>${q.sentence || q.prompt || q.question}</p>
       ${transHtml}
@@ -1354,7 +1453,73 @@ function checkMultipleChoiceAnswer(selectedIndex, correctIndex) {
     </div>
   `;
 
-  document.getElementById("next-btn").style.display = "block";
+  // 動態切換下一題按鈕字樣：若是最後一題，改為「結束練習」
+  const nextBtn = document.getElementById("next-btn");
+  if (nextBtn) {
+    const isLast = sessionState.currentIndex === sessionState.questions.length - 1;
+    if (isLast) {
+      nextBtn.innerText = "🎉 結束練習";
+      nextBtn.style.background = "linear-gradient(135deg, var(--secondary), #a78bfa)";
+    } else {
+      nextBtn.innerText = "下一題";
+      nextBtn.style.background = ""; // 恢復 CSS 預設樣式
+    }
+    nextBtn.style.display = "block";
+  }
+
+  // 體驗優化：核對完答案後自動往下平滑滾動到解析與按鈕，免除手動滑畫面
+  setTimeout(() => {
+    const el = document.getElementById("active-explanation-card");
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, 150);
+}
+
+// 快速將當前題目手動送入複習箱 (不硬猜)
+function addCurrentToWrongAndSkip() {
+  const q = sessionState.questions[sessionState.currentIndex];
+  
+  // 禁用所有按鈕防止重複點擊
+  const btns = document.querySelectorAll(".quiz-option-btn");
+  btns.forEach(btn => btn.disabled = true);
+
+  // 標記為錯題
+  if (!sessionState.wrongAnswers.some(w => w.id === q.id)) {
+    sessionState.wrongAnswers.push(q);
+  }
+
+  // 呈現已送入複習箱解析
+  const expBox = document.getElementById("explanation-box");
+  expBox.innerHTML = `
+    <div class="explanation-card" id="active-explanation-card" style="border-left:3px solid var(--accent-red); background:rgba(239,68,68,0.05)">
+      <h4>📌 已將此題存入今日複習箱！</h4>
+      <p style="font-size:14px; margin-bottom:8px;">無須硬猜，您可以直接前往複習分頁中做針對性練習。</p>
+      <p><strong>題目內文：</strong>${q.sentence || q.prompt || q.question}</p>
+      <p style="margin-top:10px;"><strong>解答說明：</strong>${q.explanation}</p>
+    </div>
+  `;
+
+  const nextBtn = document.getElementById("next-btn");
+  if (nextBtn) {
+    const isLast = sessionState.currentIndex === sessionState.questions.length - 1;
+    if (isLast) {
+      nextBtn.innerText = "🎉 結束練習";
+      nextBtn.style.background = "linear-gradient(135deg, var(--secondary), #a78bfa)";
+    } else {
+      nextBtn.innerText = "下一題";
+      nextBtn.style.background = "";
+    }
+    nextBtn.style.display = "block";
+  }
+
+  // 自動滾動到解析
+  setTimeout(() => {
+    const el = document.getElementById("active-explanation-card");
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, 150);
 }
 
 // 2. 句型重組按鈕動作
@@ -1721,6 +1886,7 @@ function showSessionSummary() {
 
   // 處理答錯的題目加入複習箱
   const tomorrowStr = getTomorrowString();
+  const todayStr = getTodayString ? getTodayString() : new Date().toISOString().split('T')[0];
   sessionState.wrongAnswers.forEach(q => {
     // 檢查複習箱中是否已存在此題，若不存在則加入
     if (!state.reviewBox.some(item => item.id === q.id)) {
@@ -1730,13 +1896,15 @@ function showSessionSummary() {
         type: sessionState.category,
         questionData: q,
         boxNum: 1,
-        nextReviewDate: tomorrowStr
+        nextReviewDate: tomorrowStr,
+        addedDate: todayStr // 記錄新增錯題的日期
       });
     } else {
-      // 若存在，重置其等級到 Box 1，並且設為明天複習
+      // 若存在，重置其等級到 Box 1，並且設為明天複習，並更新加入日期
       const index = state.reviewBox.findIndex(item => item.id === q.id);
       state.reviewBox[index].boxNum = 1;
       state.reviewBox[index].nextReviewDate = tomorrowStr;
+      state.reviewBox[index].addedDate = todayStr;
     }
   });
 
@@ -1855,19 +2023,89 @@ function renderReviewBoxList() {
 
   const todayStr = getTodayString();
   
-  // 依據當前 examGoal 過濾複習箱內容
+  // 1. 動態繪製「當日錯題快速複習區（以題型為分類）」
+  const filtersContainer = document.getElementById("today-wrong-filters-container");
+  if (filtersContainer) {
+    // 找出所有 addedDate 為今天的錯題
+    const todayWrongItems = state.reviewBox.filter(item => item.addedDate === todayStr);
+    
+    // 對今日錯題按類型進行分組統計
+    const typeCounts = {};
+    todayWrongItems.forEach(item => {
+      const type = item.type || "other";
+      typeCounts[type] = (typeCounts[type] || 0) + 1;
+    });
+
+    const typeLabels = {
+      // 智能分級單字
+      level1: "Level 1 單字",
+      level2: "Level 2 單字",
+      level3: "Level 3 單字",
+      level4: "Level 4 單字",
+      level5: "Level 5 單字",
+      phrase: "常用片語",
+      phrases: "常用片語",
+      sentence: "句型重組",
+      sentences: "句型重組",
+      grammar: "文法挑錯",
+      // NCLEX-RN 護理師
+      pharmacology: "藥理學",
+      medSurg: "內外科護理",
+      pediatric: "兒科護理",
+      maternity: "產科婦幼",
+      dialogue: "臨床口說",
+      // AI 智能出題
+      ai_vocab_trans: "AI 單字對譯",
+      ai_vocab_cloze: "AI 單字克漏字",
+      ai_grammar_cloze: "AI 語法克漏字",
+      ai_dialogue_choice: "AI 情境對話",
+      ai_reading_passages: "AI 閱讀理解",
+      ai_listening_comprehend: "AI 聽力理解",
+      ai_speaking_pronounce: "AI 口說發音"
+    };
+
+    const typeIcons = {
+      level1: "fa-leaf", level2: "fa-seedling", level3: "fa-tree", level4: "fa-graduation-cap", level5: "fa-crown",
+      phrase: "fa-quote-left", phrases: "fa-quote-left", sentence: "fa-align-left", sentences: "fa-align-left", grammar: "fa-exclamation-triangle",
+      pharmacology: "fa-pills", medSurg: "fa-stethoscope", pediatric: "fa-baby", maternity: "fa-heartbeat", dialogue: "fa-comments",
+      ai_vocab_trans: "fa-language", ai_vocab_cloze: "fa-pen-nib", ai_grammar_cloze: "fa-puzzle-piece",
+      ai_dialogue_choice: "fa-comments", ai_reading_passages: "fa-book-open", ai_listening_comprehend: "fa-headphones", ai_speaking_pronounce: "fa-microphone-alt"
+    };
+
+    const typesList = Object.keys(typeCounts);
+    if (typesList.length === 0) {
+      filtersContainer.innerHTML = `
+        <div style="font-size:13px; color:var(--text-secondary); padding: 8px 12px; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px dashed var(--border-color); width: 100%;">
+          🎉 太棒了！您今天目前沒有任何答錯的題目。
+        </div>
+      `;
+    } else {
+      filtersContainer.innerHTML = typesList.map(type => {
+        const count = typeCounts[type];
+        const label = typeLabels[type] || type;
+        const icon = typeIcons[type] || "fa-check";
+        return `
+          <button class="next-btn" onclick="startTodayWrongTypeReview('${type}')" style="padding: 8px 14px; font-size: 13px; display:inline-flex; align-items:center; gap:6px; background: linear-gradient(135deg, var(--bg-card), rgba(167, 139, 250, 0.15)); border: 1px solid var(--border-color);">
+            <i class="fas ${icon}" style="color:var(--secondary)"></i>
+            ${label}
+            <span style="background:var(--accent-red); color:#fff; border-radius:50px; padding:2px 8px; font-size:11px; font-weight:700; margin-left:4px;">${count}</span>
+          </button>
+        `;
+      }).join("");
+    }
+  }
+
+  // 2. 依據當前 examGoal 過濾一般的今日待複習內容
   const waitingReviews = state.reviewBox.filter(item => {
     if (item.nextReviewDate > todayStr) return false;
     const qid = item.id || "";
     if (state.examGoal === "rn") {
       return qid.startsWith("rn_");
     } else if (state.examGoal === "api") {
-      // 聯網 api 題 (不包含 api_gemini)
       return qid.startsWith("api_") && !qid.startsWith("api_gemini_");
     } else if (state.examGoal === "gemini") {
       return qid.startsWith("api_gemini_");
     } else {
-      // dict: 本地單字/片語/句型/文法 (不以 rn_ 開頭，也不以 api_ 開頭)
       return !qid.startsWith("rn_") && !qid.startsWith("api_");
     }
   });
@@ -1907,7 +2145,6 @@ function renderReviewBoxList() {
       wordName = `對話口說: ${item.questionData.title}`;
       wordTranslation = item.questionData.roleB.substring(0, 40) + "...";
     } else {
-      // 聯網、藥理等其他情況的相容降級
       wordName = item.questionData.word || item.questionData.question || "英文練習題";
       wordTranslation = item.questionData.translation || item.questionData.chinese || "複習項目";
     }
@@ -1926,6 +2163,28 @@ function renderReviewBoxList() {
       </div>
     `;
   }).join("");
+}
+
+// 3. 今日特定題型錯題複習開題函數
+function startTodayWrongTypeReview(type) {
+  const todayStr = getTodayString();
+  const matchedWrongItems = state.reviewBox.filter(item => item.addedDate === todayStr && item.type === type);
+  
+  if (matchedWrongItems.length === 0) return;
+
+  const selectedQuestions = matchedWrongItems.map(item => item.questionData);
+
+  sessionState = {
+    category: type,
+    questions: selectedQuestions,
+    currentIndex: 0,
+    score: 0,
+    wrongAnswers: [],
+    startTime: Date.now(),
+    isReviewSession: true // 標記為複習 session，做對會直接累積與升級 Leitner box
+  };
+
+  startNextReviewQuestion();
 }
 
 function startReviewSession() {
@@ -2340,6 +2599,11 @@ function updateBackupUIStatus(status) {
   }
 }
 
+function saveGeminiApiKey(key) {
+  localStorage.setItem("gemini_api_key_global", key.trim());
+  showFloatingNotification("Gemini API 金鑰已成功存檔！");
+}
+
 async function handleRequestActivePermission() {
   if (!directoryHandle) return;
   try {
@@ -2570,12 +2834,12 @@ function renderUserModal() {
 
   const keyInput = document.getElementById("gemini-api-key-input");
   if (keyInput) {
-    keyInput.value = localStorage.getItem("gemini_api_key_" + currentUser) || "";
+    keyInput.value = localStorage.getItem("gemini_api_key_global") || "";
   }
 }
 
 function saveGeminiApiKey(key) {
-  localStorage.setItem("gemini_api_key_" + currentUser, key.trim());
+  localStorage.setItem("gemini_api_key_global", key.trim());
   showFloatingNotification("Gemini API 金鑰已安全地儲存在本機！");
 }
 
@@ -2995,3 +3259,192 @@ const GRAMMAR_DATA = [
   { wrong: "I usually go to school by the bus.", correct: "I usually go to school by bus.", t: "表示交通方式 by + 交通工具時，中間不加冠詞 the。" },
   { wrong: "He made me to clean the room.", correct: "He made me clean the room.", t: "使役動詞 make 後面接受詞 + 原形動詞，不需要 to。" }
 ];
+
+// --- 雙緩存預加載 (Prefetching) 系統 ---
+let geminiPrefetchCache = {};
+
+// 初始化或更新 prefetch，並確保只呼叫 gemini-2.0-flash
+async function initializeGeminiSession() {
+  if (state.examGoal !== "gemini") return;
+  triggerPrefetchAll();
+}
+
+function fetchGeminiQuestionsPromise(category, difficulty, keyword) {
+  return new Promise(async (resolve, reject) => {
+    const apiKey = localStorage.getItem("gemini_api_key_global");
+    if (!apiKey) {
+      reject(new Error("API_KEY_NOT_SET"));
+      return;
+    }
+
+    const questionCount = (category === "ai_vocab_trans") ? 10 : ((category === "ai_reading_passages") ? 3 : 5);
+    const categoryNames = {
+      ai_vocab_trans: "單字對譯選擇題",
+      ai_vocab_cloze: "單字克漏字選擇題",
+      ai_grammar_cloze: "文法填充選擇題",
+      ai_dialogue_choice: "情境對話選擇題",
+      ai_reading_passages: "閱讀理解選擇題",
+      ai_listening_comprehend: "聽力理解選擇題",
+      ai_speaking_pronounce: "口說發音訓練題"
+    };
+    const categoryName = categoryNames[category] || "客製化練習題";
+
+    let targetDifficultyStr = "中等難度 (多益 605-780 分之間)";
+    if (difficulty === "toeic_basic") targetDifficultyStr = "初級/初中級難度 (多益 10-400 分之間)";
+    else if (difficulty === "toeic_elementary") targetDifficultyStr = "中等級難度 (多益 405-600 分之間)";
+    else if (difficulty === "toeic_mid") targetDifficultyStr = "中高等級難度 (多益 605-780 分之間)";
+    else if (difficulty === "toeic_advanced") targetDifficultyStr = "進階級難度 (多益 785-900 分之間)";
+    else if (difficulty === "toeic_master") targetDifficultyStr = "最高進階級難度 (多益 905-990 分之間)";
+
+    let conditionPrompt = "";
+    if (keyword) {
+      conditionPrompt = `並且，出題內容與情境「必須嚴格與以下主題關鍵字相關」：【${keyword}】。`;
+    }
+
+    let typeSpecificPrompt = "";
+    if (category === "ai_vocab_trans") {
+      typeSpecificPrompt = `每一題題目 (question) 「必須只能是單一個英文單字」（例如: "ball"、"collaborate"），選項 (options) 必須為 4 個不同的「繁體中文翻譯」選項（且其中只有一個是該英文單字的正確對譯），例如：["球", "香蕉", "箱子", "蘋果"]。答案索引 (answer) 為正確選項之 0-based 索引。此題型解析 (explanation) 請「嚴格限制在 30 字以內」，僅說明單字詞性與意思，並附帶一句極簡英文例句與中文翻譯。`;
+    } else if (category === "ai_vocab_cloze") {
+      typeSpecificPrompt = `每一題為克漏字填空。請在題目 (question) 中給出一個英文句子並將其中的核心「單字」或「片語」部分挖空（以底線 ____ 標示）。選項 (options) 必須為 4 個英文單字或片語（且只有一個填入句子中語意與搭配詞是正確的）。解析 (explanation) 限 40 字以內，直截了當指出正確搭配词的中文含意即可，請勿重複題目。`;
+    } else if (category === "ai_grammar_cloze") {
+      typeSpecificPrompt = `每一題為文法填充題。請在題目 (question) 中給出一句英文句子並挖空（以底線 ____ 標示）。選項 (options) 必須為 4 個英文文法選項（主要針對時態、詞性、介係詞、連接詞的變化，且只有一個是文法正確的）。解析 (explanation) 限 40 字以內，僅需解釋該語法核心規則與語境，請勿囉嗦。`;
+    } else if (category === "ai_dialogue_choice") {
+      typeSpecificPrompt = `每一題為情境對話選擇題。題目 (question) 為一句情境中的英文提問或對話（例如 "Q: How are you?" 或是 "A: We need to finalize the contract by tomorrow, what do you think?"）。選項 (options) 必須提供 4 個英文回應選項，且其中只有一個是語氣適當、最得體的回覆語句。解析 (explanation) 限 40 字以內，僅說明為何該回應最得體及其中文意思。`;
+    } else if (category === "ai_reading_passages") {
+      typeSpecificPrompt = `每一題為閱讀理解。題目 (question) 請先給出一小段英文故事、商務信件、或電子郵件（約 50-80 字），接著附帶詢問一個與該文章內容相符的英文理解問題。選項 (options) 為 4 個英文或繁體中文選項。解析 (explanation) 限 40 字以內，僅需翻譯原文中支持正確答案的關鍵句子，絕對不要進行全文大意翻譯。`;
+    } else if (category === "ai_listening_comprehend") {
+      typeSpecificPrompt = `每一題為聽力理解。題目 (question) 請給出一個適合播放、英文朗讀的簡短英文小故事（長度約 40-70 字）。請注意：該題在網頁上只會發音，因此請確保問題和對話內容能透過耳朵聽懂。選項 (options) 請提供 4 個選項，選項與題目可以包含英文與中文。解析 (explanation) 限 40 字以內，說明聽力材料中支持解答的關鍵字句即可。`;
+    } else if (category === "ai_speaking_pronounce") {
+      typeSpecificPrompt = `每一題為口說發音訓練。這題型不需要 4 個單選選項，請嚴格按照以下針對口說的 JSON 格式輸出，且說明與發音重點解析 (explanation) 欄位「必須控制在 45 字以內」，僅說明單字發音、連音與流暢度點評：
+[
+  {
+    "id": "gemini_speaking_1",
+    "title": "情境名稱",
+    "roleA": "引導情境或提示英文",
+    "translationA": "引導情境的中文翻譯",
+    "roleB": "要求使用者唸出、大聲說出來的英文句子，長度約 8-15 字",
+    "translationB": "該句子的中文翻譯",
+    "explanation": "發音重點、連音與發音點評解析"
+  }
+]`;
+    }
+
+    const prompt = `你是一個專業的英文老師。請幫我出 ${questionCount} 題英語 ${categoryName} 練習題。
+難度設定為：${targetDifficultyStr}。${conditionPrompt}
+
+${category === 'ai_speaking_pronounce' ? typeSpecificPrompt : `
+${typeSpecificPrompt}
+請嚴格輸出符合以下 JSON 格式的陣列（不要包含任何 markdown 標籤如 \`\`\`json 或額外說明文字，只回傳乾淨的 JSON）。每個解析 (explanation) 欄位「必須非常精簡且絕對不能超過 40 個字」。
+特別注意：每一題的正確答案索引 (answer) 必須在 0, 1, 2, 3 中「隨機打亂分佈」，絕對不要全部都固定為 0 (選項A)！
+[
+  {
+    "id": "gemini_${category}_1",
+    "question": "英文題目內容",
+    "options": ["選項1", "選項2", "選項3", "選項4"],
+    "answer": 2,
+    "explanation": "極簡中文解析與答案翻譯（限 40 字內）"
+  }
+]
+`}`;
+
+    const cleanApiKey = apiKey.trim();
+    const endpoints = [
+      { version: "v1beta", model: "gemini-2.5-flash" },
+      { version: "v1beta", model: "gemini-flash-latest" }
+    ];
+
+    const tryFetch = async () => {
+      let lastError = null;
+      for (const ep of endpoints) {
+        const url = `https://generativelanguage.googleapis.com/${ep.version}/models/${ep.model}:generateContent?key=${cleanApiKey}`;
+        try {
+          console.log(`正在使用 ${ep.version}/${ep.model} 發送出題請求...`);
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }]
+            })
+          });
+
+          if (res.status === 429) {
+            lastError = new Error("RATE_LIMIT_429");
+          } else if (res.ok) {
+            const data = await res.json();
+            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
+              let text = data.candidates[0].content.parts[0].text;
+              text = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+              const questions = JSON.parse(text);
+              let questionsArray = [];
+              if (Array.isArray(questions)) {
+                questionsArray = questions;
+              } else if (questions && typeof questions === "object") {
+                questionsArray = [questions];
+              }
+
+              const mapped = questionsArray.map((q, idx) => {
+                q.id = `api_gemini_${category}_${idx}_${Date.now()}`;
+                
+                // 口說題沒有 options，只有選擇題才需要打亂
+                if (category !== "ai_speaking_pronounce" && q.options && q.options.length > 0 && typeof q.answer !== "undefined") {
+                  try {
+                    const correctAnswerText = q.options[q.answer]; // 取出原本的答案字串
+                    if (correctAnswerText) {
+                      // 將選項陣列配對並隨機排序
+                      const shuffledOptions = [...q.options].sort(() => Math.random() - 0.5);
+                      // 在打亂後的陣列中，定位出正確答案的新索引
+                      const newAnswerIdx = shuffledOptions.indexOf(correctAnswerText);
+                      if (newAnswerIdx !== -1) {
+                        q.options = shuffledOptions;
+                        q.answer = newAnswerIdx;
+                      }
+                    }
+                  } catch (e) {
+                    console.warn("打亂題目選項失敗，使用原順序：", e);
+                  }
+                }
+                return q;
+              });
+              resolve(mapped);
+              return;
+            }
+          } else {
+            const errText = await res.text();
+            lastError = new Error(`HTTP_${res.status}: ${errText}`);
+          }
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      reject(lastError || new Error("ALL_ENDPOINTS_FAILED"));
+    };
+
+    try {
+      await tryFetch();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// 異步下載並快取單一分類的題目
+async function prefetchGeminiQuestions(category, difficulty, keyword) {
+  const cacheKey = `${category}_${difficulty}_${keyword || ""}`;
+  if (geminiPrefetchCache[cacheKey]) return; // 已快取則跳過
+
+  try {
+    console.log(`[Prefetch] 開始背景預加載題型：${category}`);
+    const questions = await fetchGeminiQuestionsPromise(category, difficulty, keyword);
+    if (questions && questions.length > 0) {
+      geminiPrefetchCache[cacheKey] = questions;
+      console.log(`[Prefetch] 成功快取題型：${category}`);
+    }
+  } catch (err) {
+    console.warn(`[Prefetch] 背景快取 ${category} 失敗 (此為背景加載，不影響操作)：`, err.message);
+  }
+}
+
+// 動態排隊防抖的快取觸發器，每隔 2.5 秒才向 Google 請求一個，避免觸發 429
+async function triggerPrefetchAll() {
+  // 保持靜默，停用背景預載，省下每日上限 1500 次配額，避免 429 錯誤
+}
